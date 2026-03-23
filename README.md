@@ -107,8 +107,7 @@ results/<TYPE>/<sample_name>/
 ├── Assembly/
 ├── Preprocessing/<TYPE>/
 ├── Stats/<TYPE>/
-├── log_cluster_jobs/<TYPE>/
-└── logs_cluster_jobs/
+└── logs_cluster_jobs/<TYPE>/
 ```
 
 ## GitHub Readiness

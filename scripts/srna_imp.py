@@ -42,9 +42,8 @@ class PipelineContext:
         self.assembly_dir = self.analysis_type_dir
         self.novel_dir = self.analysis_type_dir / "novel"
         self.summary_dir = self.stats_dir
-        self.log_cluster_jobs_root = self.sample_dir / "log_cluster_jobs"
-        self.report_logs_dir = self.log_cluster_jobs_root / self.sample_type
-        self.legacy_logs_dir = self.sample_dir / "logs_cluster_jobs"
+        self.logs_cluster_jobs_root = self.sample_dir / "logs_cluster_jobs"
+        self.report_logs_dir = self.logs_cluster_jobs_root / self.sample_type
         self.helper_scripts_dir = Path(config["project"].get("helper_scripts_dir", self.root_dir / "scripts"))
         self.raw_fastq = Path(config["input"]["fastq"]).resolve()
         self.assembly_fasta = Path(config["input"]["assembly_fasta"]).resolve() if config["input"].get("assembly_fasta") else None
@@ -76,12 +75,11 @@ class PipelineContext:
             self.assembly_dir,
             self.novel_dir,
             self.summary_dir,
-            self.log_cluster_jobs_root,
+            self.logs_cluster_jobs_root,
             self.report_logs_dir,
             self.report_logs_dir / "human",
             self.report_logs_dir / "nonhuman",
             self.report_logs_dir / "novel",
-            self.legacy_logs_dir,
             self.host_dir / "mirna",
             self.host_dir / "otherrna",
             self.host_dir / "rrna",
