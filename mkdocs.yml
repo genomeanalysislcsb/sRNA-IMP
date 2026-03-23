@@ -1,0 +1,10 @@
+site_name: sRNA-IMP
+site_description: Metagenomic smallRNA analysis pipeline
+repo_name: sRNA-IMP
+docs_dir: docs
+theme:
+  name: material
+nav:
+  - Home: index.md
+  - Workflow: workflow.md
+  - Directory Structure: directory-structure.md

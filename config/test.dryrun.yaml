@@ -1,0 +1,31 @@
+project:
+  name: srna-imp
+  root_dir: /scratch/users/pmay/sRNA/sRNA-IMP
+  results_dir: /scratch/users/pmay/sRNA/sRNA-IMP/results
+  work_dir: /scratch/users/pmay/sRNA/sRNA-IMP/work
+  logs_dir: /scratch/users/pmay/sRNA/sRNA-IMP/logs
+  type: sRNA_Ext
+  threads: 4
+  run_multiqc: false
+inputs:
+  samples:
+    sample_test:
+      fastq: /scratch/users/pmay/sRNAs/run_smallRNA1.sh
+  assembly_fasta: /scratch/users/pmay/sRNAs/run_smallRNA1.sh
+  assembly_gff: /scratch/users/pmay/sRNAs/run_smallRNA1.sh
+tools:
+  fastqc: fastqc
+  fastp: fastp
+  bowtie2: bowtie2
+  samtools: samtools
+  bedtools: bedtools
+  multiqc: multiqc
+  python: python
+scripts:
+  assembly_based: /scratch/users/pmay/sRNAs/run_smallRNA1.sh
+  host_specific: /scratch/users/pmay/sRNAs/scripts/human_final_pipeline.sh
+  nonhost_specific: /scratch/users/pmay/sRNAs/scripts/nonhuman_final_pipeline.sh
+  novel_ncrna: /scratch/users/pmay/sRNAs/scripts/discover_novel_ncrna.sh
+execution:
+  steps:
+    - summary

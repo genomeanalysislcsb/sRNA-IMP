@@ -1,0 +1,5 @@
+title: "sRNA-IMP report"
+intro_text: "MultiQC summary for the sRNA-IMP smallRNA metagenomic analysis workflow."
+report_header_info:
+  - Workflow: "sRNA-IMP"
+  - Focus: "host, non-host, assembly-based, and novel ncRNA analysis"

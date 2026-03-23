@@ -1,0 +1,30 @@
+name: srna-imp
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.11
+  - pyyaml
+  - fastqc
+  - fastp
+  - bowtie
+  - bowtie2
+  - bwa
+  - srnamapper
+  - samtools
+  - bedtools
+  - bedops
+  - seqkit
+  - seqtk
+  - fastx_toolkit
+  - pigz
+  - minimap2
+  - kraken2
+  - ribodetector
+  - bracken
+  - infernal
+  - viennarna
+  - aragorn
+  - trnascan-se
+  - multiqc

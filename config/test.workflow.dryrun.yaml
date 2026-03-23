@@ -1,0 +1,49 @@
+project:
+  root_dir: /scratch/users/pmay/sRNA/sRNA-IMP
+  results_dir: /scratch/users/pmay/sRNA/sRNA-IMP/results
+  logs_dir: /scratch/users/pmay/sRNA/sRNA-IMP/logs
+  helper_scripts_dir: /scratch/users/pmay/sRNAs/scripts
+
+sample:
+  name: sample_test
+  type: sRNA-Ext
+
+input:
+  fastq: /scratch/users/pmay/sRNAs/run_smallRNA1.sh
+  assembly_fasta: /scratch/users/pmay/sRNAs/run_smallRNA1.sh
+  assembly_gff: /scratch/users/pmay/sRNAs/run_smallRNA1.sh
+
+settings:
+  threads: 4
+  run_multiqc: false
+
+tools:
+  python: python
+  fastqc: fastqc
+  fastp: fastp
+  bowtie: bowtie
+  bowtie-build: bowtie-build
+  bwa: bwa
+  samtools: samtools
+  bedtools: bedtools
+  seqkit: seqkit
+  seqtk: seqtk
+  fastx_collapser: fastx_collapser
+  gff2bed: gff2bed
+  srnaMapper: srnaMapper
+  kraken2: kraken2
+  cmscan: cmscan
+  RNAfold: RNAfold
+  aragorn: aragorn
+  tRNAscan-SE: tRNAscan-SE
+  multiqc: multiqc
+  sort: sort
+  awk: awk
+  cut: cut
+  uniq: uniq
+
+workflows:
+  preprocessing:
+    host_filter_indexes: []
+  novel_ncrna:
+    rfam_cm: /scratch/users/pmay/sRNAs/run_smallRNA1.sh

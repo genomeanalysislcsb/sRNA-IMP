@@ -1,0 +1,81 @@
+project:
+  helper_scripts_dir: /scratch/users/pmay/sRNAs/scripts
+  logs_dir: /scratch/users/pmay/sRNA/sRNA-IMP/logs
+  results_dir: /scratch/users/pmay/sRNA/sRNA-IMP/results
+  root_dir: /scratch/users/pmay/sRNA/sRNA-IMP
+sample_defaults:
+  type: sRNA-Ext
+samples:
+- assembly_fasta: /mnt/isilon/projects/ecosystem_biology/expobiome/imp/bhc01/Assembly/mgmt.assembly.merged.fa.gz
+  assembly_gff: /mnt/isilon/projects/ecosystem_biology/expobiome/imp/bhc01/Analysis/annotation/annotation_CDS_RNA_hmms.gff.gz
+  fastq: /mnt/isilon/projects/ecosystem_biology/expobiome/raw/smRNA-Ext/fastq/_BHC01_t0F_Ext-smRNA_ExBio_SE_S16_R1_001.fastq.gz
+  name: BHC01
+  type: sRNA-Ext
+- assembly_fasta: /mnt/isilon/projects/ecosystem_biology/expobiome/imp/bhc02/Assembly/mgmt.assembly.merged.fa.gz
+  assembly_gff: /mnt/isilon/projects/ecosystem_biology/expobiome/imp/bhc02/Analysis/annotation/annotation_CDS_RNA_hmms.gff.gz
+  fastq: /mnt/isilon/projects/ecosystem_biology/expobiome/raw/smRNA-Ext/fastq/_BHC02_t0F_Ext-smRNA_ExBio_SE_S48_R1_001.fastq.gz
+  name: BHC02
+  type: sRNA-Ext
+settings:
+  run_multiqc: true
+  threads: 16
+tools:
+  RNAfold: RNAfold
+  aragorn: aragorn
+  awk: awk
+  bedtools: bedtools
+  bowtie: bowtie
+  bowtie-build: bowtie-build
+  bwa: bwa
+  cmscan: cmscan
+  cut: cut
+  fastp: fastp
+  fastqc: fastqc
+  fastx_collapser: fastx_collapser
+  gff2bed: gff2bed
+  kraken2: kraken2
+  multiqc: multiqc
+  python: python
+  ribodetector_cpu: ribodetector_cpu
+  samtools: samtools
+  seqkit: seqkit
+  seqtk: seqtk
+  sort: sort
+  srnaMapper: srnaMapper
+  tRNAscan-SE: tRNAscan-SE
+  uniq: uniq
+workflows:
+  assembly_based:
+    max_length: 51
+    min_length: 15
+  host_specific:
+    mirna_index: /work/projects/imp/db/smallRNA/human/hsa_mature_miRNA
+    other_ncrna_index: /work/projects/imp/db/smallRNA/human/hsa_otherRNA
+    rrna_index: /work/projects/imp/db/smallRNA/human/hsa_rRNA_all
+    trna_index: /work/projects/imp/db/smallRNA/human/hsa_tRNA_all
+  nonhost_specific:
+    bracken_db: /work/projects/imp/db/imp3/k2_core_nt_20250609
+    kraken_db: /work/projects/imp/db/imp3/k2_core_nt_20250609
+    mirna_euk_index: /work/projects/imp/db/smallRNA/nonhuman/miRNAs/mirna_euk_all
+    rfam_class_index: /work/projects/imp/db/smallRNA/rfam/rfam_classes
+    rfamseq_tsv: /work/projects/imp/db/smallRNA/rfam/rfamseq.reduced.tsv
+    trna_index: /work/projects/imp/db/smallRNA/nonhuman/tRNA/trna_all
+  novel_ncrna:
+    max_length: 250
+    merge_distance: 10
+    min_length: 18
+    min_reads: 10
+    mismatches: 1
+    rfam_cm: /work/projects/imp/db/smallRNA/rfam/Rfam.cm
+    run_aragorn: true
+    run_cmscan: true
+    run_rnafold: true
+    run_trnascan: false
+  preprocessing:
+    host_filter_indexes: []
+    host_reference_fastas:
+    - /work/projects/imp/db/imp3/filtering/T2TCHM13v2genomic.fa
+    - /work/projects/imp/db/imp3/filtering/T2TCHM13v2transcripts.fa
+    max_length: 250
+    min_length: 15
+    run_fastqc: true

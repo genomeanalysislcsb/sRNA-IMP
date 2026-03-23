@@ -1,0 +1,3 @@
+name	type	fastq	assembly_fasta	assembly_gff
+BHC01	sRNA-Ext	/mnt/isilon/projects/ecosystem_biology/expobiome/raw/smRNA-Ext/fastq/_BHC01_t0F_Ext-smRNA_ExBio_SE_S16_R1_001.fastq.gz	/mnt/isilon/projects/ecosystem_biology/expobiome/imp/bhc01/Assembly/mgmt.assembly.merged.fa.gz	/mnt/isilon/projects/ecosystem_biology/expobiome/imp/bhc01/Analysis/annotation/annotation_CDS_RNA_hmms.gff.gz
+BHC02	sRNA-Ext	/mnt/isilon/projects/ecosystem_biology/expobiome/raw/smRNA-Ext/fastq/_BHC02_t0F_Ext-smRNA_ExBio_SE_S48_R1_001.fastq.gz	/mnt/isilon/projects/ecosystem_biology/expobiome/imp/bhc02/Assembly/mgmt.assembly.merged.fa.gz	/mnt/isilon/projects/ecosystem_biology/expobiome/imp/bhc02/Analysis/annotation/annotation_CDS_RNA_hmms.gff.gz

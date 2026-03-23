@@ -1,0 +1,18 @@
+Bootstrap: docker
+From: continuumio/miniconda3:latest
+
+%files
+    . /opt/srna-imp
+
+%post
+    cd /opt/srna-imp
+    conda env create -f envs/srna-imp.yaml
+    conda clean -afy
+
+%environment
+    export PATH="/opt/conda/envs/srna-imp/bin:$PATH"
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+
+%runscript
+    exec /opt/conda/envs/srna-imp/bin/python /opt/srna-imp/scripts/srna_imp.py "$@"

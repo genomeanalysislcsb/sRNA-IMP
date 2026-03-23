@@ -1,0 +1,83 @@
+project:
+  root_dir: /scratch/users/pmay/sRNA/sRNA-IMP
+  results_dir: /scratch/users/pmay/sRNA/sRNA-IMP/results
+  logs_dir: /scratch/users/pmay/sRNA/sRNA-IMP/logs
+  helper_scripts_dir: /scratch/users/pmay/sRNAs/scripts
+
+sample_defaults:
+  type: sRNA-Ext
+
+input_defaults:
+  assembly_fasta:
+  assembly_gff:
+
+samples_tsv: /scratch/users/pmay/sRNA/sRNA-IMP/config/samples.example.tsv
+
+settings:
+  threads: 16
+  run_multiqc: true
+
+tools:
+  python: python
+  fastqc: fastqc
+  fastp: fastp
+  bowtie: bowtie
+  bowtie-build: bowtie-build
+  bwa: bwa
+  samtools: samtools
+  bedtools: bedtools
+  seqkit: seqkit
+  seqtk: seqtk
+  fastx_collapser: fastx_collapser
+  gff2bed: gff2bed
+  srnaMapper: srnaMapper
+  kraken2: kraken2
+  ribodetector_cpu: ribodetector_cpu
+  cmscan: cmscan
+  RNAfold: RNAfold
+  aragorn: aragorn
+  tRNAscan-SE: tRNAscan-SE
+  multiqc: multiqc
+  sort: sort
+  awk: awk
+  cut: cut
+  uniq: uniq
+
+workflows:
+  preprocessing:
+    min_length: 15
+    max_length: 250
+    run_fastqc: true
+    host_reference_fastas:
+      - /work/projects/imp/db/imp3/T2TCHM13v2genomic.fa
+      - /work/projects/imp/db/imp3/T2TCHM13v2transcripts.fa
+
+  host_specific:
+    mirna_index: /work/projects/imp/db/smallRNA/human/hsa_mature_miRNA
+    trna_index: /work/projects/imp/db/smallRNA/human/hsa_tRNA_all
+    rrna_index: /work/projects/imp/db/smallRNA/human/hsa_rRNA_all
+    other_ncrna_index: /work/projects/imp/db/smallRNA/human/hsa_otherRNA
+
+  nonhost_specific:
+    kraken_db: /work/projects/imp/db/imp3/k2_core_nt_20250609
+    bracken_db: /work/projects/imp/db/imp3/k2_core_nt_20250609
+    trna_index: /work/projects/imp/db/smallRNA/nonhuman/tRNA/trna_all
+    mirna_euk_index: /work/projects/imp/db/smallRNA/nonhuman/miRNAs/mirna_euk_all
+    rfam_class_index: /work/projects/imp/db/smallRNA/rfam/rfam_classes
+    rfamseq_tsv: /work/projects/imp/db/smallRNA/rfam/rfamseq.reduced.tsv
+
+  assembly_based:
+    min_length: 15
+    max_length: 51
+
+  novel_ncrna:
+    min_length: 18
+    max_length: 250
+    min_reads: 10
+    merge_distance: 10
+    mismatches: 1
+    run_aragorn: true
+    run_trnascan: false
+    run_cmscan: true
+    run_rnafold: true
+    rfam_cm: /work/projects/imp/db/smallRNA/rfam/Rfam.cm

@@ -1,0 +1,25 @@
+# Runtime outputs
+results/
+logs/
+.micromamba/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local backups and scratch files
+*.bak
+*.tmp
+*.swp
+*.swo
+scripts/*.bak_*
+MY
+
+# Documentation build output
+site/
+
+# IDE noise
+.vscode/
+.idea/
