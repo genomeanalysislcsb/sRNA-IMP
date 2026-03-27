@@ -110,6 +110,17 @@ results/<TYPE>/<sample_name>/
 └── logs_cluster_jobs/<TYPE>/
 ```
 
+
+## Database Setup
+
+The repository now includes a reusable database setup helper bundle:
+- docs guide: `docs/database_setup.md`
+- setup script: `scripts/download_and_setup_databases.sh`
+- editable path config: `config_examples/database_paths.example.sh`
+- helper environment: `envs/database_setup.yml`
+
+These files document and automate the directly downloadable database components while leaving curated local FASTA placeholders for references that are better assembled explicitly per project.
+
 ## GitHub Readiness
 
 The project now includes:

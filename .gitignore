@@ -23,3 +23,6 @@ site/
 # IDE noise
 .vscode/
 .idea/
+MYREADME
+config/batch1.samples.tsv
+config/batch1.tsv_config.yaml

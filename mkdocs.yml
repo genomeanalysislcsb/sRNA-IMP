@@ -16,6 +16,7 @@ nav:
   - Non-human Workflow: nonhuman.md
   - ncRNA Discovery: ncrna.md
   - Databases: databases.md
+  - Database Setup: database_setup.md
   - MultiQC: multiqc.md
   - Directory Structure: directory-structure.md
   - Troubleshooting: troubleshooting.md
