@@ -148,3 +148,5 @@ A license and remote GitHub repository are still a project decision, so they sho
 - assembly-based and novel workflows require `input.assembly_fasta` and `input.assembly_gff`
 - helper Python scripts from `/scratch/users/pmay/sRNAs/scripts` are still reused where that is efficient and stable
 - `ribodetector_cpu` is expected from the Conda environment and is not configured per sample
+
+Note: GitHub Pages deployment may require one fresh push after enabling Actions and Pages settings.
