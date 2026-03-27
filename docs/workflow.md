@@ -1,6 +1,6 @@
 # Workflow
 
-```mermaid
+<div class="mermaid">
 flowchart TD
     A[Raw single-end smallRNA FASTQ] --> B[Preprocessing]
     B --> C[fastp trimming and FastQC]
@@ -18,7 +18,7 @@ flowchart TD
     I --> L
     J --> L
     L --> M[MultiQC]
-```
+</div>
 
 ## Resume Logic
 
