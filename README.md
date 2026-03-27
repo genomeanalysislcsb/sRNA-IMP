@@ -121,6 +121,18 @@ The repository now includes a reusable database setup helper bundle:
 
 These files document and automate the directly downloadable database components while leaving curated local FASTA placeholders for references that are better assembled explicitly per project.
 
+## Publishing
+
+The repository now includes:
+- Read the Docs configuration in `.readthedocs.yml`
+- a GitHub Pages deployment workflow in `.github/workflows/docs-pages.yml`
+
+To publish docs on GitHub Pages, set the repository Pages source to **GitHub Actions**.
+
+## Tested Context
+
+The current native pipeline and examples have been exercised in the Luxembourg HPC environment used during development, with micromamba-managed tooling and real sample runs such as `BHC01` and `BHC02`.
+
 ## GitHub Readiness
 
 The project now includes:
