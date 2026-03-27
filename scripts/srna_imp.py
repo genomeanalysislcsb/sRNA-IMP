@@ -9,6 +9,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -375,7 +376,7 @@ def workflow_required_outputs(ctx: PipelineContext, workflow: str) -> list[Path]
     if workflow == "preprocessing":
         return [ctx.trimmed_fastq, ctx.host_fastq, ctx.nonhost_fastq, ctx.preprocess_stats]
     if workflow == "host_specific":
-        return [ctx.host_dir / f"{ctx.sample_name}.host.summary.tsv"]
+        return [ctx.host_dir / f"{ctx.sample_name}.human.summary.tsv"]
     if workflow == "nonhost_specific":
         return [
             ctx.nonhost_dir / "rrna" / f"{ctx.sample_name}.rRNA.fastq.gz",
@@ -601,64 +602,81 @@ def run_host_specific(ctx: PipelineContext, dry_run: bool) -> None:
         raise ValueError(f"host_specific config missing: {', '.join(missing)}")
 
     host_input = ctx.host_fastq
+    summary_path = ctx.host_dir / f"{ctx.sample_name}.human.summary.tsv"
     if not dry_run and host_input.exists() and host_input.stat().st_size == 0:
-        write_text(ctx.host_dir / f"{ctx.sample_name}.host.summary.tsv", "sample\tcategory\tcount\n")
+        write_text(
+            summary_path,
+            "sample\tcategory\treads\n"
+            f"{ctx.sample_name}\ttrimmed\t0.00\n"
+            f"{ctx.sample_name}\thuman_miRNA\t0.00\n"
+            f"{ctx.sample_name}\thuman_tRNA\t0.00\n"
+            f"{ctx.sample_name}\thuman_rRNA\t0.00\n"
+            f"{ctx.sample_name}\thuman_otherRNA\t0.00\n"
+            f"{ctx.sample_name}\tremaining_after_miRNA\t0.00\n"
+            f"{ctx.sample_name}\tremaining_after_tRNA\t0.00\n"
+            f"{ctx.sample_name}\tremaining_after_rRNA\t0.00\n"
+            f"{ctx.sample_name}\tunknown_after_all\t0.00\n",
+        )
+        mark_workflow_complete(ctx, "host_specific", False)
         return
 
-    categories = [
-        ("mirna", cfg["mirna_index"]),
-        ("trna", cfg["trna_index"]),
-        ("rrna", cfg["rrna_index"]),
-        ("otherrna", cfg["other_ncrna_index"]),
-    ]
-    current_input = host_input
-    helper = ctx.helper_scripts_dir / "sam_fractional_counts.py"
-    validate_exists(helper, "sam_fractional_counts.py")
-    summary_lines = ["sample\tcategory\tcount"]
+    helper_counts = ctx.helper_scripts_dir / "sam_fractional_counts.py"
+    helper_summary = ctx.helper_scripts_dir / "summarize_human_subtree.py"
+    validate_exists(helper_counts, "sam_fractional_counts.py")
+    validate_exists(helper_summary, "summarize_human_subtree.py")
 
-    for category, index in categories:
-        out_dir = ctx.host_dir / category
-        out_dir.mkdir(parents=True, exist_ok=True)
-        sam_path = out_dir / f"{ctx.sample_name}.{category}.sam"
-        unmapped = out_dir / f"{ctx.sample_name}.after_{category}.fastq"
-        cmd = [
-            get_tool(ctx.config, "bowtie", "bowtie"),
-            "-p",
-            str(ctx.threads),
-            "-v",
-            "1",
-            "-a",
-            "--best",
-            "--sam",
-            "--un",
-            str(unmapped),
-            str(index),
-            str(current_input),
-        ]
-        run_command_stdout_to_file(cmd, sam_path, ctx.report_logs_dir / f"{ctx.sample_name}.host.{category}.log", dry_run)
-        counts_path = out_dir / f"{ctx.sample_name}.{category}.counts.tsv"
+    categories = [
+        ("mirna", cfg["mirna_index"], f"{ctx.sample_name}.human.mirna.sam", f"{ctx.sample_name}.human.mirna.counts.tsv", f"{ctx.sample_name}.human.non_mirna.fastq"),
+        ("trna", cfg["trna_index"], f"{ctx.sample_name}.human.trna.sam", f"{ctx.sample_name}.human.trna.counts.tsv", f"{ctx.sample_name}.human.non_mirna.non_trna.fastq"),
+        ("rrna", cfg["rrna_index"], f"{ctx.sample_name}.human.rrna.sam", f"{ctx.sample_name}.human.rrna.counts.tsv", f"{ctx.sample_name}.human.non_mirna.non_trna.non_rrna.fastq"),
+        ("otherrna", cfg["other_ncrna_index"], f"{ctx.sample_name}.human.otherrna.sam", f"{ctx.sample_name}.human.otherrna.counts.tsv", f"{ctx.sample_name}.human.unknown.fastq"),
+    ]
+
+    current_input = host_input
+    with tempfile.TemporaryDirectory(prefix=f"{ctx.sample_name}.human.") as tmpdir_name:
+        tmpdir = Path(tmpdir_name)
+        for category, index, sam_name, counts_name, unmapped_name in categories:
+            out_dir = ctx.host_dir / category
+            out_dir.mkdir(parents=True, exist_ok=True)
+            sam_path = tmpdir / sam_name
+            unmapped_plain = tmpdir / unmapped_name
+            final_unmapped = out_dir / f"{unmapped_name}.gz"
+            cmd = [
+                get_tool(ctx.config, "bowtie", "bowtie"),
+                "-p",
+                str(ctx.threads),
+                "-v",
+                "1",
+                "-a",
+                "--best",
+                "--sam",
+                "--un",
+                str(unmapped_plain),
+                str(index),
+                str(current_input),
+            ]
+            run_command_stdout_to_file(cmd, sam_path, ctx.report_logs_dir / f"{ctx.sample_name}.host.{category}.log", dry_run)
+            counts_path = out_dir / counts_name
+            run_command(
+                [get_tool(ctx.config, "python", "python"), str(helper_counts), "-i", str(sam_path), "-o", str(counts_path)],
+                ctx.report_logs_dir / f"{ctx.sample_name}.host.{category}.counts.log",
+                dry_run,
+            )
+            if dry_run:
+                print(f"[dry-run] gzip -f {unmapped_plain} && move to {final_unmapped}")
+            else:
+                run_command(["gzip", "-f", str(unmapped_plain)], ctx.report_logs_dir / f"{ctx.sample_name}.host.{category}.gzip.log", False)
+                shutil.move(str(unmapped_plain) + ".gz", final_unmapped)
+            current_input = final_unmapped
+
         run_command(
-            [get_tool(ctx.config, "python", "python"), str(helper), "-i", str(sam_path), "-o", str(counts_path)],
-            ctx.report_logs_dir / f"{ctx.sample_name}.host.{category}.counts.log",
+            [get_tool(ctx.config, "python", "python"), str(helper_summary), str(ctx.host_dir), "-o", str(summary_path)],
+            ctx.report_logs_dir / f"{ctx.sample_name}.host.summary.log",
             dry_run,
         )
-        current_input = unmapped
-        if not dry_run:
-            total = sum_count_table(counts_path)
-            summary_lines.append(f"{ctx.sample_name}	{category}	{format_normalized(total)}")
 
     if not dry_run:
-        write_text(ctx.host_dir / f"{ctx.sample_name}.host.summary.tsv", "\n".join(summary_lines) + "\n")
-        for category, _ in categories:
-            out_dir = ctx.host_dir / category
-            sam_path = out_dir / f"{ctx.sample_name}.{category}.sam"
-            after_fastq = out_dir / f"{ctx.sample_name}.after_{category}.fastq"
-            if sam_path.exists():
-                sam_path.unlink()
-            if after_fastq.exists():
-                after_fastq.unlink()
         mark_workflow_complete(ctx, "host_specific", False)
-
 
 def run_nonhost_specific(ctx: PipelineContext, dry_run: bool) -> None:
     cfg = get_workflow_config(ctx.config, "nonhost_specific")
@@ -1249,7 +1267,7 @@ def run_novel_ncrna(ctx: PipelineContext, dry_run: bool) -> None:
 def run_summary(ctx: PipelineContext, dry_run: bool) -> None:
     summary_files = [
         ctx.preprocess_stats,
-        ctx.host_dir / f"{ctx.sample_name}.host.summary.tsv",
+        ctx.host_dir / f"{ctx.sample_name}.human.summary.tsv",
         ctx.nonhost_dir / f"{ctx.sample_name}.nonhuman.summary.tsv",
         ctx.novel_dir / f"{ctx.sample_name}.novel.summary.tsv",
     ]
