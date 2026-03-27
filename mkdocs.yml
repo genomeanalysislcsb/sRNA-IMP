@@ -20,3 +20,10 @@ nav:
   - MultiQC: multiqc.md
   - Directory Structure: directory-structure.md
   - Troubleshooting: troubleshooting.md
+
+markdown_extensions:
+  - pymdownx.superfences
+
+extra_javascript:
+  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
+  - javascripts/mermaid-init.js
