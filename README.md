@@ -1,5 +1,10 @@
 # sRNA-IMP
 
+## Documentation
+
+- Live docs: https://genomeanalysislcsb.github.io/sRNA-IMP/
+- GitHub repository: https://github.com/genomeanalysislcsb/sRNA-IMP
+
 `sRNA-IMP` is a native, modular small-RNA pipeline for microbiome-associated smallRNA-seq data. It integrates the optimized logic from the existing preprocessing, host, non-host, assembly-based, and novel ncRNA discovery workflows into one config-driven entrypoint.
 
 ## What It Does
@@ -126,8 +131,9 @@ These files document and automate the directly downloadable database components 
 The repository now includes:
 - Read the Docs configuration in `.readthedocs.yml`
 - a GitHub Pages deployment workflow in `.github/workflows/docs-pages.yml`
+- live documentation at https://genomeanalysislcsb.github.io/sRNA-IMP/
 
-To publish docs on GitHub Pages, set the repository Pages source to **GitHub Actions**.
+GitHub Pages should deploy automatically from `main` via **GitHub Actions**.
 
 ## Tested Context
 
@@ -140,7 +146,7 @@ The project now includes:
 - a multi-sample example config
 - a basic GitHub Actions syntax-check workflow at `.github/workflows/python-syntax.yml`
 
-A license and remote GitHub repository are still a project decision, so they should be chosen explicitly before publishing.
+The codebase is versioned on GitHub and published under the MIT license.
 
 ## Notes
 
@@ -149,4 +155,3 @@ A license and remote GitHub repository are still a project decision, so they sho
 - helper Python scripts from `/scratch/users/pmay/sRNAs/scripts` are still reused where that is efficient and stable
 - `ribodetector_cpu` is expected from the Conda environment and is not configured per sample
 
-Note: GitHub Pages deployment may require one fresh push after enabling Actions and Pages settings.

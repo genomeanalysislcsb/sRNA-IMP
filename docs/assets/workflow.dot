@@ -1,0 +1,45 @@
+digraph workflow {
+  rankdir=TB;
+  graph [splines=true, nodesep=0.45, ranksep=0.65, pad=0.2];
+  node [shape=box, style="rounded,filled", fillcolor="#f5f7ff", color="#3559a6", fontname="Helvetica", fontsize=11, margin="0.18,0.08"];
+  edge [color="#4f5b7a", arrowsize=0.8, penwidth=1.2];
+
+  A [label="Raw single-end
+smallRNA FASTQ"];
+  B [label="Preprocessing"];
+  C [label="fastp trimming
+and FastQC"];
+  D [label="Host filtering
+with Bowtie"];
+  E [label="Host reads"];
+  F [label="Non-host reads"];
+  G [label="Human or host-specific
+classification"];
+  H [label="Non-host
+classification"];
+  I [label="Assembly-based
+analysis"];
+  J [label="Novel ncRNA
+discovery"];
+  K [label="Assembly FASTA
++ GFF", fillcolor="#fff7e8", color="#b07a00"];
+  L [label="Summary TSVs", fillcolor="#eef9f0", color="#2f7d4a"];
+  M [label="MultiQC", fillcolor="#eef9f0", color="#2f7d4a"];
+
+  A -> B;
+  B -> C;
+  C -> D;
+  D -> E;
+  D -> F;
+  E -> G;
+  F -> H;
+  F -> I;
+  F -> J;
+  K -> I;
+  K -> J;
+  G -> L;
+  H -> L;
+  I -> L;
+  J -> L;
+  L -> M;
+}
