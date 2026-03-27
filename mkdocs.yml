@@ -1,10 +1,21 @@
 site_name: sRNA-IMP
 site_description: Metagenomic smallRNA analysis pipeline
 repo_name: sRNA-IMP
+repo_url: https://github.com/genomeanalysislcsb/sRNA-IMP
 docs_dir: docs
 theme:
   name: material
 nav:
   - Home: index.md
+  - Installation: installation.md
+  - Quickstart: quickstart.md
+  - Configuration: configuration.md
+  - Inputs and Outputs: io.md
   - Workflow: workflow.md
+  - Human Workflow: human.md
+  - Non-human Workflow: nonhuman.md
+  - ncRNA Discovery: ncrna.md
+  - Databases: databases.md
+  - MultiQC: multiqc.md
   - Directory Structure: directory-structure.md
+  - Troubleshooting: troubleshooting.md

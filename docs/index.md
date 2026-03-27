@@ -1,19 +1,27 @@
 # sRNA-IMP
 
-`sRNA-IMP` is a metagenomic smallRNA analysis project scaffold for microbiome data.
+`sRNA-IMP` is a modular small RNA analysis pipeline for microbiome-associated smallRNA-seq data.
 
-## Included
+It supports:
+- preprocessing from raw single-end FASTQ input
+- host and non-host read separation
+- host small RNA classification
+- non-host small RNA classification
+- assembly-based analysis against contigs and annotations
+- novel ncRNA candidate discovery
+- summary TSV generation and MultiQC reporting
 
-- config-driven execution
-- preprocessing workspace layout
-- wrappers for the existing analysis scripts
-- Conda environment definition
-- Singularity definition
-- MkDocs and Read the Docs setup
-- workflow and directory diagrams
+## Documentation Map
 
-## Main Entry Point
-
-```bash
-python scripts/srna_imp.py --config config/my_run.yaml
-```
+- [Installation](installation.md)
+- [Quickstart](quickstart.md)
+- [Configuration](configuration.md)
+- [Inputs and Outputs](io.md)
+- [Workflow](workflow.md)
+- [Human Workflow](human.md)
+- [Non-human Workflow](nonhuman.md)
+- [ncRNA Discovery](ncrna.md)
+- [Databases](databases.md)
+- [MultiQC](multiqc.md)
+- [Directory Structure](directory-structure.md)
+- [Troubleshooting](troubleshooting.md)
