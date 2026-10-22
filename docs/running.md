@@ -158,7 +158,7 @@ _fecal miRNA origin                                                        Liu S
 | style | layout |
 |---|---|
 | `nature` | Methods with run-in subsection headings, numbered references (superscript, order of first citation), *Data availability* and *Code availability* |
-| `star` | STAR Protocols (Cell Press): summary, before you begin, **key resources table**, step-by-step method details (one step per module with its command and run time), expected outcomes, quantification and statistical analysis, limitations, troubleshooting, resource availability; numbered Cell Press references |
+| `star` | STAR Protocols (Cell Press): summary, before you begin, **key resources table**, step-by-step method details (one step per module with its command), expected outcomes, quantification and statistical analysis, limitations, troubleshooting, resource availability; numbered Cell Press references |
 
 The Methods in `METHODS_REPORT_STYLE` (default **STAR Protocols**) are also added as the last pages of
 `<sample>.report.pdf` and `cohort.report.pdf` (two-column text pages; selectable text in the HTML reports).
@@ -173,9 +173,7 @@ The text is built from the run itself:
   binning) — from `scripts/methods_resources.tsv`: set names, versions and identifiers there **once** for
   your installation;
 - **cohort numbers** — samples, libraries per fraction and group, excluded libraries;
-- **run times** (STAR *Timing*) — median and range per library from the `.done` stamps (runs after this
-  update);
-- **references** — Nature or Cell Press format with DOIs.
+- **references** — Nature or Cell Press format with DOIs; the repository and documentation URLs are filled in.
 
 Everything that could not be determined is written as `[CHECK: …]` — search for it before submission.
 To regenerate without rerunning anything:

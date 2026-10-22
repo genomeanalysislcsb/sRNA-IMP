@@ -21,6 +21,10 @@ Outputs: <prefix>.crispr_arrays.tsv   one row per array (reads, strand, type, ca
          <prefix>.crispr_genes.tsv    Cas genes near the arrays (coordinates, strand, name, sense reads)
          <prefix>.crispr_coverage.tsv per-base read coverage (+ / - strand, weighted) of the --plot-top arrays
                                       with their Cas genes and --flank nt on each side (locus plots)
+         <prefix>.crispr_tracr.tsv    tracrRNA candidates of type II / V arrays (needs --fasta): sRNA read
+                                      clusters in the CRISPR-Cas locus outside the array, tested for an
+                                      anti-repeat (local alignment with the crRNA repeat, G·U allowed; the reads
+                                      + TRACR_EXT5 nt upstream; empirical p from shuffled sequences)
 """
 import argparse
 import bisect
@@ -33,6 +37,12 @@ import sys
 import urllib.parse
 
 MIN_SPACER_OVERLAP = 10
+TRACR_FLANK = 1500          # tracrRNA search: CRISPR-Cas locus (array + Cas genes) +/- this many nt
+TRACR_MIN_READS = 10        # weighted reads per read cluster
+TRACR_LEN = (30, 300)       # cluster length (nt)
+TRACR_SHUFFLES = 500
+TRACR_EXT5 = 30             # the anti-repeat is cut inside the repeat:anti-repeat duplex (RNase III) -> the mature
+                            # tracrRNA often starts within it: search also this many nt upstream of the reads
 CAS_WINDOW = 10000
 NH_RE = re.compile(r"\tNH:i:(\d+)")
 CIGAR_RE = re.compile(r"(\d+)([MIDNSHP=X])")
@@ -149,6 +159,152 @@ def read_tax(paths):
     return tax
 
 
+# ------------------------------------------------------------------ tracrRNA candidates (type II / V)
+COMP = str.maketrans("ACGTUN", "TGCAAN")
+
+
+def rc(x):
+    return x.upper().translate(COMP)[::-1]
+
+
+def read_contigs(path, wanted):
+    seqs, cur, buf = {}, None, []
+    with open_in(path) as fh:
+        for ln in fh:
+            if ln.startswith(">"):
+                if cur is not None:
+                    seqs[cur] = "".join(buf)
+                name = ln[1:].split()[0]
+                cur, buf = (name if name in wanted else None), []
+            elif cur is not None:
+                buf.append(ln.strip().upper())
+    if cur is not None:
+        seqs[cur] = "".join(buf)
+    return seqs
+
+
+def pair_score(a, b):
+    """a: candidate base, b: base of the reverse complement of the crRNA repeat (Watson-Crick = match);
+    G·U wobble: a=G vs b=A (repeat U), a=T vs b=C (repeat G)"""
+    if a == b:
+        return 2
+    if (a, b) in (("G", "A"), ("T", "C")):
+        return 1
+    return -3
+
+
+def sw(x, y, gap=-5):
+    """Smith-Waterman local alignment: best score, x range, y range, pairs, wobbles, alignment strings"""
+    n, m = len(x), len(y)
+    H = [[0] * (m + 1) for _ in range(n + 1)]
+    best, bi, bj = 0, 0, 0
+    for i in range(1, n + 1):
+        xi, Hi, Hp = x[i - 1], H[i], H[i - 1]
+        for j in range(1, m + 1):
+            v = max(0, Hp[j - 1] + pair_score(xi, y[j - 1]), Hp[j] + gap, Hi[j - 1] + gap)
+            Hi[j] = v
+            if v > best:
+                best, bi, bj = v, i, j
+    i, j, ax, ay, wc, wb = bi, bj, [], [], 0, 0
+    while i > 0 and j > 0 and H[i][j] > 0:
+        v = H[i][j]
+        sc = pair_score(x[i - 1], y[j - 1])
+        if v == H[i - 1][j - 1] + sc:
+            ax.append(x[i - 1]); ay.append(y[j - 1])
+            wc += sc == 2
+            wb += sc == 1
+            i, j = i - 1, j - 1
+        elif v == H[i - 1][j] + gap:
+            ax.append(x[i - 1]); ay.append("-"); i -= 1
+        else:
+            ax.append("-"); ay.append(y[j - 1]); j -= 1
+    return best, (i, bi), (j, bj), wc, wb, "".join(reversed(ax)), "".join(reversed(ay))
+
+
+def shuffle_p(x, y, obs, n, rnd):
+    if obs <= 0:
+        return 1.0
+    xs, ge = list(x), 0
+    for _ in range(n):
+        rnd.shuffle(xs)
+        if sw("".join(xs), y)[0] >= obs:
+            ge += 1
+    return (ge + 1) / (n + 1)
+
+
+def clusters(reads, gap=10):
+    """reads: [(s, e, w)] of one strand -> [(start, end, weighted reads, [reads])]"""
+    out = []
+    for r in sorted(reads):
+        if out and r[0] <= out[-1][1] + gap:
+            c = out[-1]
+            out[-1] = (c[0], max(c[1], r[1]), c[2] + r[2], c[3] + [r])
+        else:
+            out.append((r[0], r[1], r[2], [r]))
+    return out
+
+
+def tracr_candidates(arrays, units, cds, arr_rows, weighted, seqs, shuffles=TRACR_SHUFFLES):
+    import random
+    rnd = random.Random(1)
+    out = []
+    for row in arr_rows:
+        aid, ctype, tstrand = row[0], row[9], row[17]
+        if not ("II" in ctype.split("/") or "V" in ctype.split("/")):
+            continue
+        ar = arrays[aid]
+        c = ar["contig"]
+        if c not in seqs:
+            continue
+        seq = seqs[c]
+        reps = [u for u in units.get(aid, []) if u["kind"] == "repeat"]
+        rep = seq[reps[0]["start"]:reps[0]["end"]] if reps else ar["consensus"].replace("U", "T")
+        if not rep:
+            continue
+        crrep = rep if tstrand == "+" else rc(rep)            # repeat as part of the crRNA (RNA orientation)
+        target = rc(crrep)                                     # an anti-repeat looks like this
+        near = [(s_, e_) for (s_, e_, st_, gid, g) in cds.get(c, [])
+                if s_ < ar["end"] + CAS_WINDOW and e_ > ar["start"] - CAS_WINDOW]
+        lo = max(0, min([ar["start"]] + [x[0] for x in near]) - TRACR_FLANK)
+        hi = min(len(seq), max([ar["end"]] + [x[1] for x in near]) + TRACR_FLANK)
+        for strand in "+-":
+            rr = [(s_, e_, w) for (cc, s_, e_, st, w) in weighted
+                  if cc == c and st == strand and s_ >= lo and e_ <= hi
+                  and not (s_ < ar["end"] + 30 and e_ > ar["start"] - 30)]
+            for cs, ce, cw, members in clusters(rr):
+                if cw < TRACR_MIN_READS or not (TRACR_LEN[0] <= ce - cs <= TRACR_LEN[1]):
+                    continue
+                xs_, xe_ = (max(0, cs - TRACR_EXT5), ce) if strand == "+" else (cs, min(len(seq), ce + TRACR_EXT5))
+                x = seq[xs_:xe_] if strand == "+" else rc(seq[xs_:xe_])
+                ext = (cs - xs_) if strand == "+" else (xe_ - ce)  # nt of x upstream of the reads
+                score, (xa, xb), (ya, yb), wc, wb, alx, aly = sw(x, target)
+                ar5 = (xs_ + xa + 1) if strand == "+" else (xe_ - xa)          # anti-repeat 5' end (1-based)
+                p = shuffle_p(x, target, score, shuffles, rnd)
+                e5 = collections.Counter()
+                e3 = collections.Counter()
+                for s_, e_, w in members:
+                    e5[s_ if strand == "+" else e_] += w
+                    e3[e_ if strand == "+" else s_] += w
+                m5, w5 = e5.most_common(1)[0]
+                m3, w3 = e3.most_common(1)[0]
+                alen = len(alx)
+                cand = alen >= 15 and wc + wb >= 0.75 * alen and p <= 0.01
+                # position relative to the locus: which side of the array / cas9
+                cas9 = [(s_, e_, st_) for (s_, e_, st_, gid, g) in cds.get(c, []) if "cas9" in g.lower()
+                        or "csn1" in g.lower() or "cas12" in g.lower()]
+                rel = ""
+                if cas9:
+                    s9, e9, st9 = cas9[0]
+                    up = (ce <= s9) if st9 == "+" else (cs >= e9)
+                    rel = ("overlaps " if cs < e9 and ce > s9 else ("upstream of " if up else "downstream of ")) + \
+                        "cas9" + (" (same strand)" if strand == st9 else " (opposite strand)")
+                out.append([aid, c, cs, ce, strand, ce - cs, "%.1f" % cw,
+                            m5 + (1 if strand == "+" else 0), "%.2f" % (w5 / cw), m3 + (0 if strand == "+" else 1),
+                            "%.2f" % (w3 / cw), rel, score, alen, wc, wb, "%.4f" % p, "yes" if cand else "no",
+                            x, crrep, alx, aly, ar5, max(0, ext - xa)])
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--bam", required=True)
@@ -160,6 +316,8 @@ def main():
     ap.add_argument("--threads", type=int, default=2)
     ap.add_argument("--plot-top", type=int, default=5, help="coverage for the N arrays with most reads")
     ap.add_argument("--flank", type=int, default=500)
+    ap.add_argument("--fasta", default="", help="contigs (FASTA, .gz ok): tracrRNA candidates of type II / V arrays")
+    ap.add_argument("--tracr-shuffles", type=int, default=TRACR_SHUFFLES)
     a = ap.parse_args()
 
     arrays, units, cds = load(a.gbed)
@@ -329,6 +487,22 @@ def main():
         out.write("length\tclass\treads\n")
         for (L, cl), w in sorted(len_out.items()):
             out.write("%d\t%s\t%.3f\n" % (L, cl, w))
+    tr = []
+    if a.fasta:
+        want = {arrays[r[0]]["contig"] for r in arr_out if ("II" in r[9].split("/") or "V" in r[9].split("/"))
+                and float(r[15]) > 0}
+        if want:
+            tr = tracr_candidates(arrays, units, cds, arr_out, weighted, read_contigs(a.fasta, want), a.tracr_shuffles)
+    with open(p + ".crispr_tracr.tsv", "w") as out:
+        out.write("\t".join(["array_id", "contig", "start", "end", "strand", "length", "reads", "main_5p_end",
+                             "share_5p", "main_3p_end", "share_3p", "position", "antirepeat_score", "aligned_nt",
+                             "watson_crick", "wobble", "p_shuffle", "tracr_candidate", "sequence", "crRNA_repeat",
+                             "align_candidate", "align_repeat_rc", "antirepeat_5p", "antirepeat_nt_before_reads"]) + "\n")
+        for r in tr:
+            out.write("\t".join(str(x) for x in r) + "\n")
+    if a.fasta:
+        sys.stderr.write("[crispr] tracrRNA: %d read clusters in type II/V loci, %d with an anti-repeat\n" % (
+            len(tr), sum(1 for r in tr if r[17] == "yes")))
     sys.stderr.write("[crispr] %d arrays, %.1f reads on arrays, %d arrays with >= 10 reads\n"
                      % (len(arrays), sum(sum(r[3] for r in v) for v in reads.values()),
                         sum(1 for v in reads.values() if sum(r[3] for r in v) >= 10)))

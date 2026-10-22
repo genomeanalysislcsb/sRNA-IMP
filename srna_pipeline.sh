@@ -150,6 +150,8 @@ CONFIG=$(readlink -f "$CONFIG")
 
 # shellcheck source=srna_pipeline.config.sh
 source "$CONFIG"
+# defaults for settings an older config may lack
+METHODS_STYLE=${METHODS_STYLE-nature,star}; METHODS_REPORT_STYLE=${METHODS_REPORT_STYLE-star}
 
 for m in ${MODULES//,/ }; do
   # validated against ALL_MODULES (single source of the module list)
@@ -1367,6 +1369,7 @@ module_crispr() {
   [[ -n "$IN_BINS" ]] && opt+=(--contig2bin "$IN_BINS")
   [[ -n "$IN_GTDB" ]] && opt+=(--gtdbtk "$IN_GTDB")
   [[ -s "$ASMDIR/$PREFIX.feature_counts.tsv" ]] && opt+=(--feature-counts "$ASMDIR/$PREFIX.feature_counts.tsv")
+  [[ -s "$ASSEMBLY.gz" ]] && opt+=(--fasta "$ASSEMBLY.gz")      # tracrRNA candidates of type II / V arrays
   log "reads on CRISPR arrays ..."
   python3 "$SCRIPTS_DIR/srna_crispr.py" --bam "$BAM" --gbed "$GBED" --out-prefix "$CRISPRDIR/$PREFIX" \
     --threads "$THREADS" ${opt[@]+"${opt[@]}"} 2> "$L/$PREFIX.srna_crispr.log" \
@@ -1456,9 +1459,9 @@ methods_envs() {
 write_methods() {
   local mode=$1 pre=$2; shift 2
   [[ ( "${METHODS_STYLE:-nature,star}" == none || -z "${METHODS_STYLE-x}" ) && \
-     ( -z "${METHODS_REPORT_STYLE:-}" || "${METHODS_REPORT_STYLE}" == none ) ]] && return 0
+     ( -z "${METHODS_REPORT_STYLE-star}" || "${METHODS_REPORT_STYLE-star}" == none ) ]] && return 0
   local pf=$pre.params.tsv st styles=${METHODS_STYLE:-nature,star}
-  [[ -n "${METHODS_REPORT_STYLE:-}" && "${METHODS_REPORT_STYLE}" != none && ",$styles," != *",${METHODS_REPORT_STYLE},"* ]] \
+  [[ -n "${METHODS_REPORT_STYLE-star}" && "${METHODS_REPORT_STYLE-star}" != none && ",$styles," != *",${METHODS_REPORT_STYLE},"* ]] \
     && styles+=",$METHODS_REPORT_STYLE"
   write_params "$pf"
   for st in ${styles//,/ }; do
@@ -1480,8 +1483,8 @@ run_report() {   # sample
   ( activate_env "${ENV_REPORT:-${ENV_DEFAULT:-}}"
     write_methods sample "$RDIR/$S" --samples "$S" --types "$(IFS=,; echo "${types[*]}")" ) \
     > "$L/$S.methods.log" 2>&1 || warn "$S: Methods failed (see $L/$S.methods.log)"
-  [[ -n "${METHODS_REPORT_STYLE:-}" && "$METHODS_REPORT_STYLE" != none && -s "$RDIR/$S.methods.$METHODS_REPORT_STYLE.md" ]] \
-    && mfile=$RDIR/$S.methods.$METHODS_REPORT_STYLE.md
+  [[ -n "${METHODS_REPORT_STYLE-star}" && "${METHODS_REPORT_STYLE-star}" != none && -s "$RDIR/$S.methods.${METHODS_REPORT_STYLE-star}.md" ]] \
+    && mfile=$RDIR/$S.methods.${METHODS_REPORT_STYLE-star}.md
   set +e
   (
     set -euo pipefail
@@ -1497,7 +1500,7 @@ run_report() {   # sample
   local rc=$?
   set -e
   if [[ $rc -eq 0 ]]; then
-    log "$S: report written to $RDIR/$S.report.pdf${REPORT_HTML:+ and .html}${mfile:+ (with Methods, $METHODS_REPORT_STYLE)}"
+    log "$S: report written to $RDIR/$S.report.pdf${REPORT_HTML:+ and .html}${mfile:+ (with Methods, ${METHODS_REPORT_STYLE-star})}"
     grep -h 'skipped' "$L/$S.report.log" | sed 's/^/    | /' || true
   else
     log "$S: report FAILED — see $L/$S.report.log"; tail -n 15 "$L/$S.report.log" | sed 's/^/    | /'
@@ -1845,8 +1848,8 @@ run_cohort() {
   [[ -n "${COHORT_METADATA:-}" ]] || warn "COHORT_METADATA not set — cohort summary without groups"
   log "cross-sample summary -> $CDIR ..."
   local mstyle=""
-  if [[ -n "${METHODS_REPORT_STYLE:-}" && "$METHODS_REPORT_STYLE" != none ]]; then
-    mstyle=$METHODS_REPORT_STYLE; write_params "$CDIR/cohort.params.tsv"
+  if [[ -n "${METHODS_REPORT_STYLE-star}" && "${METHODS_REPORT_STYLE-star}" != none ]]; then
+    mstyle=${METHODS_REPORT_STYLE-star}; write_params "$CDIR/cohort.params.tsv"
   fi
   set +e
   (

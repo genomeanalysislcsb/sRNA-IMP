@@ -1,0 +1,24 @@
+name: mirror to GitLab
+# pushes all branches and tags to the LCSB GitLab mirror on every push to GitHub
+# needs a repository secret GITLAB_TOKEN: GitLab project access token (role Maintainer, scope write_repository)
+on:
+  push:
+    branches: ["**"]
+    tags: ["**"]
+  workflow_dispatch:
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: push to gitlab.com
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          git remote add gitlab "https://oauth2:${GITLAB_TOKEN}@gitlab.com/uniluxembourg/lcsb/BioCore/genomeanalysis/imp/sRNA-IMP.git"
+          for b in $(git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin | grep -vx HEAD); do
+            git push --force gitlab "refs/remotes/origin/$b:refs/heads/$b"
+          done
+          git push --force gitlab --tags

@@ -198,7 +198,9 @@ EXPLAIN = {
         "repeat), which guide Cas proteins to matching phage or plasmid DNA. sRNA reads on an array that pile up on "
         "single spacers, come from one strand and have defined ends are processed crRNAs, i.e. an active CRISPR-Cas "
         "system; type II crRNAs typically start inside the spacer and end ~20 nt into the next repeat. Highly "
-        "expressed spacers point to the phages or plasmids the taxon is currently defending against.",
+        "expressed spacers point to the phages or plasmids the taxon is currently defending against. Type II (and "
+        "V-B) systems also need a tracrRNA, often encoded next to cas9: a read cluster outside the array whose "
+        "sequence pairs with the crRNA repeat (anti-repeat) is marked green as tracrRNA candidate.",
     "assembly":
         "Non-human reads mapped back to the sample's own contigs. tRNA halves (cleavage in the anticodon loop, "
         "≈30–40 nt) and 5′/3′ tRNA fragments (tRFs) are produced by stress-induced ribonucleases and are major "
@@ -219,6 +221,7 @@ EXPLAIN = {
 
 
 PIPELINE_NAME = "sRNA-IMP pipeline"      # shown in page footers, HTML header and PDF metadata
+PIPELINE_URL = "github.com/genomeanalysislcsb/sRNA-IMP"
 
 
 def page(pdf, sample, title, subtitle="", explain=""):
@@ -227,22 +230,46 @@ def page(pdf, sample, title, subtitle="", explain=""):
     if subtitle:
         fig.text(0.03, 0.927, subtitle, fontsize=7.5, color="#555", va="top")
     fig._explain = EXPLAIN.get(explain, explain)
-    fig.text(0.97, 0.012, "%s report · %s" % (PIPELINE_NAME, datetime.date.today().isoformat()),
+    fig.text(0.97, 0.012, "%s report · %s · %s" % (PIPELINE_NAME, PIPELINE_URL, datetime.date.today().isoformat()),
              fontsize=6, color="#999", ha="right")
     return fig
 
 
 def finalize(fig):
-    """make room for the explanation box under the title: shrink all axes into the lower 87 %"""
+    """put the explanation box under the title and shrink all axes so that nothing (titles, tables) overlaps it"""
     text = getattr(fig, "_explain", "")
     if not text:
         return
-    k = 0.94
+    renderer = fig.canvas.get_renderer()
+    inv = fig.transFigure.inverted()
+    # wrap so that the box stays inside the page: measure the rendered width and narrow if needed
+    width = 190
+    while True:
+        t = fig.text(0.03, 0.905, "\n".join(textwrap.wrap(text, width)), fontsize=7.2, color="#333", va="top",
+                     linespacing=1.35, bbox=dict(boxstyle="round,pad=0.4", fc="#f3f6fa", ec="#d5dde8"))
+        bb = t.get_window_extent(renderer=renderer).transformed(inv)
+        if bb.x1 <= 0.965 or width <= 80:
+            break
+        t.remove()
+        width = int(width * 0.97 * 0.945 / max(bb.x1 - 0.03, 0.01)) if bb.x1 > 1.2 else width - 6
+    # bottom of the box incl. its padding
+    t.update_bbox_position_size(renderer)
+    patch = t.get_bbox_patch()
+    box_bottom = patch.get_window_extent(renderer).transformed(inv).y0 if patch else bb.y0 - 0.01
+    # highest point of all axes incl. titles / tables, then scale the axes (and their gaps) into the space below
+    top = 0.0
     for ax in fig.axes:
-        p = ax.get_position()
-        ax.set_position([p.x0, p.y0 * k, p.width, p.height * k])
-    fig.text(0.03, 0.905, "\n".join(textwrap.wrap(text, 215)), fontsize=7.2, color="#333", va="top",
-             linespacing=1.35, bbox=dict(boxstyle="round,pad=0.4", fc="#f3f6fa", ec="#d5dde8"))
+        try:
+            tb = ax.get_tightbbox(renderer)
+            top = max(top, tb.transformed(inv).y1 if tb is not None else ax.get_position().y1)
+        except Exception:
+            top = max(top, ax.get_position().y1)
+    limit = box_bottom - 0.012
+    if top > limit and top > 0:
+        k = limit / top
+        for ax in fig.axes:
+            p = ax.get_position()
+            ax.set_position([p.x0, p.y0 * k, p.width, p.height * k])
 
 
 def grouped_barh(ax, labels, series, colors, title, xlabel="", log=False, pct_axis=False):
@@ -321,6 +348,7 @@ class TypeData:
         self.cr_lengths = read_tsv(cp_ + ".crispr_lengths.tsv")
         self.cr_genes = read_tsv(cp_ + ".crispr_genes.tsv")
         self.cr_cov = read_tsv(cp_ + ".crispr_coverage.tsv")
+        self.cr_tracr = read_tsv(cp_ + ".crispr_tracr.tsv")
         self.feat_counts = ap_ + ".feature_counts.tsv"
         if not os.path.exists(self.feat_counts):
             self.feat_counts = os.path.join(an, "bins", "%s.feature_counts.tsv" % sample)
@@ -1051,6 +1079,10 @@ def page_crispr(pdf, sample, td):
             score[r["array_id"]] = max(score[r["array_id"]], num(r["reads"]))
             info.setdefault(r["array_id"], r)
     top = [k for k in sorted(score, key=lambda k: -score[k]) if score[k] > 0][:10]
+    # arrays with a tracrRNA candidate are always listed
+    top += [k for k in sorted({x["array_id"] for d in td for x in getattr(d, "cr_tracr", [])
+                               if x.get("tracr_candidate") == "yes"}, key=lambda k: -score.get(k, 0))
+            if k not in top and k in info][:4]
     rows = []
     for k in top:
         r = info[k]
@@ -1060,12 +1092,22 @@ def page_crispr(pdf, sample, td):
             dr = next((x for x in d.cr_arrays if x["array_id"] == k), None)
             row.append("%s (%s%s)" % (fmt(num(dr["reads"])), dr["transcribed_strand"],
                                        "%.0f%%" % (100 * num(dr["strand_fraction"]))) if dr else "–")
+        # tracrRNA candidate (anti-repeat) in any fraction: anti-repeat length and reads per fraction
+        tc = [(d.t, x) for d in td for x in getattr(d, "cr_tracr", [])
+              if x["array_id"] == k and x.get("tracr_candidate") == "yes"]
+        row.append("%s nt; %s" % (max(int(x["aligned_nt"]) for _, x in tc),
+                                  " / ".join(fmt(max([num(x["reads"]) for t_, x in tc if t_ == d.t] or [0]))
+                                             for d in td)) if tc else "–")
         rows.append(row)
-    tot_rows = [["all arrays", "", "", ""] + [fmt(sum(num(x["reads"]) for x in d.cr_arrays)) for d in td]]
-    ax = fig.add_axes([0.03, 0.49, 0.50, 0.38])
-    table(ax, rows + tot_rows, ["array", "taxon (bin)", "Cas type", "rep."] + ["%s reads (strand)" % d.t.replace("sRNA-", "") for d in td],
-          col_widths=[0.11, 0.33, 0.12, 0.06] + [0.38 / len(td)] * len(td), fontsize=6.4, left=(0, 1, 2),
-          title="top CRISPR arrays", rowscale=1.12)
+    tot_rows = [["all arrays", "", "", ""] + [fmt(sum(num(x["reads"]) for x in d.cr_arrays)) for d in td] + [
+        "%d arrays" % len({x["array_id"] for d in td for x in getattr(d, "cr_tracr", [])
+                           if x.get("tracr_candidate") == "yes"})]]
+    ax = fig.add_axes([0.03, 0.49, 0.53, 0.38])
+    table(ax, rows + tot_rows, ["array", "taxon (bin)", "Cas type", "rep."] +
+          ["%s reads" % d.t.replace("sRNA-", "") for d in td] + ["tracrRNA"],
+          col_widths=[0.08, 0.26, 0.12, 0.05] + [0.30 / len(td)] * len(td) + [0.19], fontsize=6.0, left=(0, 1, 2),
+          title="top CRISPR arrays — reads (strand, share); tracrRNA: anti-repeat length; reads %s" % "/".join(
+              d.t.replace("sRNA-", "") for d in td), rowscale=1.12)
     # spacer profile of the top array
     if top:
         a0 = top[0]
@@ -1166,6 +1208,23 @@ def draw_locus(fig, box, aid, td, title):
             ax.add_patch(matplotlib.patches.Rectangle((us, -0.35), ue - us, 0.7, color="#333333", lw=0))
         else:
             ax.add_patch(matplotlib.patches.Rectangle((us, -0.25), ue - us, 0.5, color="#56B4E9", lw=0))
+    # tracrRNA candidates (anti-repeat, any fraction): green box on the strand of the candidate
+    seen = set()
+    for d in td:
+        for r in getattr(d, "cr_tracr", []):
+            if r["array_id"] != aid or r.get("tracr_candidate") != "yes":
+                continue
+            ts, te = int(r["start"]), int(r["end"])
+            key = (ts // 20, r["strand"])
+            if key in seen or te < lo or ts > hi:
+                continue
+            seen.add(key)
+            y = 0.45 if r["strand"] == "+" else -0.45
+            ax.add_patch(matplotlib.patches.Rectangle((ts, y - 0.3), max(te - ts, (hi - lo) * 0.004), 0.6,
+                                                      color="#009E73", lw=0, zorder=5))
+            ax.text((ts + te) / 2, y + (0.55 if y > 0 else -0.85),
+                    "tracrRNA? (%s nt anti-repeat, p %s)" % (r["aligned_nt"], "%.2g" % num(r["p_shuffle"])),
+                    ha="center", fontsize=5.5, color="#007A5A")
     # coverage tracks
     for i, d in enumerate(td):
         xs, pl, mi = _steps(d.cr_cov, aid)
@@ -1184,8 +1243,9 @@ def draw_locus(fig, box, aid, td, title):
         if i < n - 1:
             ax.set_xticklabels([])
         else:
-            ax.set_xlabel("%s (bp; + strand up, − strand down; reads weighted 1/NH)" % ref.cr_genes[0]["contig"]
-                          if ref.cr_genes else "position (bp)", fontsize=6.5)
+            gl = [g for g in ref.cr_genes if g["array_id"] == aid]
+            ax.set_xlabel("%s (bp; + strand up, − strand down; reads weighted 1/NH)" % gl[0]["contig"]
+                          if gl else "position (bp)", fontsize=6.5)
 
 
 def page_crispr_loci(pdf, sample, td):
@@ -1201,8 +1261,8 @@ def page_crispr_loci(pdf, sample, td):
     if not top:
         return False
     fig = page(pdf, sample, "CRISPR loci",
-               "Cas genes (orange arrows, above: + strand), CRISPR array (dark: repeats, blue: spacers) and sRNA "
-               "coverage per fraction; full locus left, array only right", explain="crispr")
+               "Cas genes (orange, above: + strand), array (dark: repeats, blue: spacers), tracrRNA candidates "
+               "(green) and sRNA coverage per fraction; full locus left, array only right", explain="crispr")
     for k, aid in enumerate(top):
         r = info[aid]
         tl = "%s — %s, type %s, %s repeats" % (aid.split("_")[-1], tax_tail(r.get("classification", ""))
@@ -1881,11 +1941,11 @@ def write_html(path, sample, types, pages, pdf_name):
  .md .li{margin:2px 0 2px 1.2em} .md .l1{margin-left:2.6em} .md .mk{color:#555} .md code{background:#f3f3f3;padding:0 3px}
 </style></head><body>
 <header><h1>%s report — %s</h1>
-<div class="meta">types: %s · generated %s · PDF: %s</div><nav>%s</nav></header>
+<div class="meta">types: %s · generated %s · PDF: %s · <a href="https://%s">%s</a></div><nav>%s</nav></header>
 %s
 </body></html>
 """ % (esc(PIPELINE_NAME), esc(sample), esc(PIPELINE_NAME), esc(sample), esc(", ".join(types)), datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-            esc(pdf_name), nav, body))
+            esc(pdf_name), PIPELINE_URL, PIPELINE_URL, nav, body))
 
 
 # ----------------------------------------------------------------------------- MultiQC

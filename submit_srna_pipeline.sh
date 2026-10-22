@@ -24,6 +24,7 @@ Pipeline options (passed to srna_pipeline.sh):
       --no-compare       do not submit the comparison + report job after the array
       --compare-only     submit only the comparison + report job (no array)
       --compare-time T   wall time of the comparison + report job (all samples, sequential)  [1-00:00:00]
+      --compare-mem M    memory of the comparison + report + cohort job                     [32G]
 
 SLURM options:
   -n, --cpus N           cpus per task                                 [16]
@@ -59,6 +60,7 @@ while [[ $# -gt 0 ]]; do
     --no-compare)    DO_COMPARE=0; shift ;;
     --compare-only)  COMPARE_ONLY=1; shift ;;
     --compare-time)  COMPARE_TIME=$2; shift 2 ;;
+    --compare-mem)   COMPARE_MEM=$2; shift 2 ;;
     -n|--cpus)       CPUS=$2; shift 2 ;;
     -T|--time)       TIME=$2; shift 2 ;;
     --mem)           MEM=$2; shift 2 ;;
@@ -122,14 +124,8 @@ echo "# job \$SLURM_JOB_ID array task \$SLURM_ARRAY_TASK_ID on \$(hostname)"
 # the environment ($ENVNAME) is activated automatically by srna_pipeline.sh (-e)
 # node-local temp space if the cluster provides one
 export TMP_ROOT="\${TMP_ROOT:-\${SLURM_TMPDIR:-\${TMPDIR:-/tmp}}}"
-bash "$RUN" \\
-  -s "$SAMPLES" \\
-  -o "$OUTDIR" \\
-  -c "$CONFIG" \\
-  -e "$ENVNAME" \\
-  -m "$MODULES" \\
-  -t "\$SLURM_CPUS_PER_TASK" \\
-  -r "\$SLURM_ARRAY_TASK_ID" $FORCE
+# one line on purpose: backslash-newline inside a here-document in \$( ) is handled differently by bash versions
+bash "$RUN" -s "$SAMPLES" -o "$OUTDIR" -c "$CONFIG" -e "$ENVNAME" -m "$MODULES" -t "\$SLURM_CPUS_PER_TASK" -r "\$SLURM_ARRAY_TASK_ID" $FORCE
 EOF
 )
 
@@ -141,7 +137,8 @@ echo "# job \$SLURM_JOB_ID (compare) on \$(hostname)"
 bash "$RUN" -s "$SAMPLES" -o "$OUTDIR" -c "$CONFIG" -e "$ENVNAME" --compare --report --cohort
 EOF
 )
-CB=(--job-name "${JOBNAME}_compare" --nodes 1 --ntasks 1 --cpus-per-task 2 --time "${COMPARE_TIME:-1-00:00:00}"
+CB=(--job-name "${JOBNAME}_compare" --nodes 1 --ntasks 1 --cpus-per-task 4 --mem "${COMPARE_MEM:-32G}"
+    --time "${COMPARE_TIME:-1-00:00:00}"
     --partition "$PARTITION" --qos "$QOS"
     --output "$OUTDIR/slurm_logs/%x_%j.out" --error "$OUTDIR/slurm_logs/%x_%j.err")
 [[ -n "$ACCOUNT" ]] && CB+=(--account "$ACCOUNT")

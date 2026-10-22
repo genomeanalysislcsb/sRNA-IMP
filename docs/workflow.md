@@ -220,6 +220,15 @@ expressed arrays therefore show up as sRNA peaks on single spacers, as in metatr
   cas3 → I, cas10/csm/cmr → III, cas12 → V, cas13 → VI; only cas1/cas2 → "adaptation only"), with the reads
   on the cas genes from the assembly feature counts;
 * adds bin and GTDB taxonomy (`contig2bin`, `gtdbtk` columns of the sample sheet).
+* **tracrRNA candidates** (type II and V arrays; needs the contigs): type II systems need a trans-activating
+  crRNA (tracrRNA) that pairs with the repeat part of each crRNA and is usually encoded next to cas9. Read clusters
+  in the CRISPR-Cas locus (array and Cas genes ± 1.5 kb, outside the array; ≥ 10 weighted reads, 30–300 nt) are
+  aligned locally with the reverse complement of the crRNA repeat (Smith-Waterman, G·U pairs allowed), including
+  30 nt upstream of the reads (RNase III cuts inside the repeat:anti-repeat duplex, so the mature tracrRNA often
+  starts within the anti-repeat; `antirepeat_nt_before_reads`). A cluster is
+  a candidate if ≥ 15 nt align with ≥ 75 % base pairs and the score beats ≥ 99 % of 500 shuffled versions of the
+  cluster sequence (`p_shuffle` ≤ 0.01). `<s>.crispr_tracr.tsv` lists every cluster with position relative to
+  cas9, main 5′ / 3′ ends, the alignment and the verdict; candidates are drawn green in the CRISPR locus plots.
 
 Outputs (`Analysis/<type>/crispr/`): `<s>.crispr_arrays.tsv`, `<s>.crispr_units.tsv` (spacer sequences
 included, e.g. to search protospacers), `<s>.crispr_ends.tsv`, `<s>.crispr_lengths.tsv`, `<s>.crispr_genes.tsv` (Cas genes) and

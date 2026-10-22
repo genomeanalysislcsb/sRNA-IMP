@@ -35,6 +35,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from srna_methods_refs import REFS  # noqa: E402
 
 PIPELINE = "sRNA-IMP pipeline"
+REPO_URL = "https://github.com/genomeanalysislcsb/sRNA-IMP"
+DOCS_URL = "https://genomeanalysislcsb.github.io/sRNA-IMP/"
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 # tool -> (display name, conda package, reference keys, URL)
@@ -406,6 +408,11 @@ def processing_sections(X, types):
         "strand was inferred from the read strands, reads on that strand were assigned to the spacer they "
         "overlapped by ≥ 10 nt (otherwise to the repeat), and CRISPR–Cas types were assigned from Cas genes within "
         "10 kb on the same contig.",
+        "In type II and V loci, read clusters outside the array (≥ 10 weighted reads, 30–300 nt, within 1.5 kb of the "
+        "locus) were tested as tracrRNA candidates by local alignment (Smith–Waterman, G·U pairs allowed; reads "
+        "plus 30 nt upstream) with the "
+        "reverse complement of the crRNA repeat; clusters with ≥ 15 aligned nt, ≥ 75 % base pairs and an empirical "
+        "P ≤ 0.01 against 500 shuffled sequences were reported as candidates.",
     ]))
     S.append(("Comparison with metatranscriptomic and metagenomic data", [
         "For each sample, small RNA fractions, metatranscriptome and metagenome were compared pairwise per "
@@ -563,7 +570,7 @@ def key_resources(X):
         ident = r["id"] if r["id"] and not r["id"].startswith("set ") else "[CHECK]"
         rows.append("| %s | %s | %s |" % (name, src, ident))
     rows.append("| **Software and algorithms** | | |")
-    rows.append("| %s%s | this protocol | [CHECK: repository URL / DOI] |" % (PIPELINE, " (%s)" % X.git if X.git else ""))
+    rows.append("| %s%s | this protocol | %s |" % (PIPELINE, " (%s)" % X.git if X.git else "", REPO_URL))
     for t in X.used_tools:
         name, _, refs, url = TOOLS[t]
         rows.append("| %s v%s | %s | %s |" % (name, X.v(t), ("ref." + X.c(*refs.split(","))) if refs else "—",
@@ -579,8 +586,8 @@ def render_nature(X, sections, title):
             out += ["**%s.** %s" % (head, " ".join(items)), ""]
     out += ["**Data availability.** [CHECK: accession numbers of the raw sequencing data (e.g. ENA/SRA) and of the "
             "processed tables.]", "",
-            "**Code availability.** The %s is available at [CHECK: repository URL]%s." % (
-                PIPELINE, " (version %s)" % X.git if X.git else ""), ""]
+            "**Code availability.** The %s is available at %s%s; documentation: %s." % (
+                PIPELINE, REPO_URL, " (version %s)" % X.git if X.git else "", DOCS_URL), ""]
     return out + references_md(X)
 
 
@@ -609,46 +616,6 @@ def present(t):
     return t
 
 
-def module_timing(outdir, samples=None):
-    """module -> {(sample, type): seconds} from the .<module>.done stamps (date<TAB>seconds)"""
-    out = collections.defaultdict(dict)
-    if not outdir:
-        return out
-    for f in glob.glob(os.path.join(outdir, "*", "log_cluster_jobs", "*", ".*.done")):
-        parts = f.split(os.sep)
-        s_, t_, m_ = parts[-4], parts[-2], parts[-1][1:-5]
-        if samples and s_ not in samples:
-            continue
-        try:
-            with open(f) as fh:
-                c = fh.read().strip().split("\t")
-            if len(c) > 1:
-                out[m_][(s_, t_)] = float(c[1])
-        except (OSError, ValueError):
-            pass
-    return out
-
-
-def timing_text(X, cmd):
-    if not hasattr(X, "_timing"):
-        X._timing = module_timing(X.a.outdir, set(X.a.samples.split(",")) if X.a.samples else None)
-    mods = [m for m in cmd.split(",") if not m.startswith("--")]
-    if not mods:
-        return "[CHECK: timing]"
-    libs = None
-    for m in mods:
-        k = set(X._timing.get(m, {}))
-        libs = k if libs is None else libs & k
-    if not libs:
-        return "[CHECK: timing — no run times in the .done stamps yet]"
-    tot = sorted(sum(X._timing[m][l] for m in mods) for l in libs)
-    med = tot[len(tot) // 2]
-
-    def h(x):
-        return "%.0f min" % (x / 60) if x < 5400 else "%.1f h" % (x / 3600)
-    return "%s per library (median of %d; range %s–%s)" % (h(med), len(tot), h(tot[0]), h(tot[-1]))
-
-
 def render_star(X, sections, title, cohort):
     out = ["# %s" % title, "",
            "## Summary", "",
@@ -675,7 +642,7 @@ def render_star(X, sections, title, cohort):
                             "Block design", "Adjusted models", "Statistical software")):
             continue
         cmd = STAR_CMD.get(head)
-        body += ["### %s" % head, ""] + (["**Timing:** %s" % timing_text(X, cmd), ""] if cmd else [])
+        body += ["### %s" % head, ""]
         if cmd:
             n += 1
             run = ("srna_pipeline.sh -s samples.tsv -o <outdir> %s" % cmd if cmd.startswith("--") else
@@ -721,8 +688,8 @@ def render_star(X, sections, title, cohort):
              "### Lead contact", "", "[CHECK: name and e-mail of the lead contact.]", "",
              "### Materials availability", "", "This study did not generate new materials.", "",
              "### Data and code availability", "",
-             "[CHECK: accession numbers of the raw data.] The %s is available at [CHECK: repository URL / DOI]%s." % (
-                 PIPELINE, " (version %s)" % X.git if X.git else ""), ""]
+             "[CHECK: accession numbers of the raw data.] The %s is available at %s%s; documentation: %s." % (
+                 PIPELINE, REPO_URL, " (version %s)" % X.git if X.git else "", DOCS_URL), ""]
     body += references_md(X)
     return out + key_resources(X) + [""] + body
 
@@ -738,7 +705,7 @@ def main():
     ap.add_argument("--resources", default=os.path.join(HERE, "methods_resources.tsv"))
     ap.add_argument("--outdir", default="")
     ap.add_argument("--cohort-dir", default="")
-    ap.add_argument("--samples", default="", help="comma-separated samples for the run times (default: all)")
+    ap.add_argument("--samples", default="", help="(unused; kept for compatibility)")
     ap.add_argument("--types", default="", help="sRNA types (default: from the cohort table or the params)")
     ap.add_argument("--out", required=True, help="output Markdown")
     ap.add_argument("--docx", action="store_true", help="also write .docx with pandoc (if available)")
