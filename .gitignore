@@ -1,28 +1,16 @@
-# Runtime outputs
-results/
-logs/
-.micromamba/
-
-# Python cache
+# build / caches
+site/
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-
-# Local backups and scratch files
-*.bak
-*.tmp
-*.swp
-*.swo
-scripts/*.bak_*
-MY
-
-# Documentation build output
-site/
-
-# IDE noise
-.vscode/
-.idea/
-MYREADME
-config/batch1.samples.tsv
-config/batch1.tsv_config.yaml
+.*.swp
+.DS_Store
+# run outputs and study data (never commit)
+*.tgz
+*.tar.gz
+*.fastq.gz
+*.bam
+*.bai
+log/
+log_cohort/
+Cohort/
+data/

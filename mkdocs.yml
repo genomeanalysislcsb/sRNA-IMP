@@ -1,27 +1,54 @@
-site_name: sRNA-IMP
-site_description: Metagenomic smallRNA analysis pipeline
-repo_name: sRNA-IMP
+site_name: sRNA-IMP pipeline
+site_url: https://genomeanalysislcsb.github.io/sRNA-IMP/
 repo_url: https://github.com/genomeanalysislcsb/sRNA-IMP
-docs_dir: docs
+repo_name: genomeanalysislcsb/sRNA-IMP
+edit_uri: edit/main/docs/
+site_description: Small RNA analysis of gut microbiome samples - intracellular and extracellular sRNA-seq
+site_author: LCSB BioCore
+copyright: LCSB BioCore, University of Luxembourg
+
 theme:
   name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.highlight
+    - content.code.copy
+  palette:
+    - scheme: default
+      toggle: {icon: material/brightness-7, name: Dark mode}
+    - scheme: slate
+      toggle: {icon: material/brightness-4, name: Light mode}
+
 nav:
   - Home: index.md
-  - Installation: installation.md
-  - Quickstart: quickstart.md
-  - Configuration: configuration.md
-  - Inputs and Outputs: io.md
-  - Workflow: workflow.md
-  - Human Workflow: human.md
-  - Non-human Workflow: nonhuman.md
-  - ncRNA Discovery: ncrna.md
-  - Databases: databases.md
-  - Database Setup: database_setup.md
-  - MultiQC: multiqc.md
-  - Directory Structure: directory-structure.md
-  - Troubleshooting: troubleshooting.md
+  - Getting started:
+      - Installation & databases: installation.md
+      - Input & sample sheet: inputs.md
+      - Running the pipeline: running.md
+  - Workflow:
+      - Overview of the steps: workflow.md
+      - Read definitions : definitions.md
+      - Classification hierarchies: classification.md
+  - Cohort analysis: cohort.md
+  - Reference:
+      - Output files: outputs.md
+      - Configuration parameters: configuration.md
+  - Quality control & troubleshooting: qc.md
 
 markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - tables
+  - toc: {permalink: true}
+  - pymdownx.details
+  - pymdownx.arithmatex: {generic: true}
+  - pymdownx.highlight: {anchor_linenums: true}
+  - pymdownx.inlinehilite
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
@@ -29,5 +56,4 @@ markdown_extensions:
           format: !!python/name:pymdownx.superfences.fence_code_format
 
 extra_javascript:
-  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
-  - javascripts/mermaid-init.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

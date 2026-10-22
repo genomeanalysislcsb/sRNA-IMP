@@ -1,157 +1,55 @@
 # sRNA-IMP
 
-## Documentation
+**sRNA-IMP** is a modular pipeline for small-RNA sequencing (sRNA-seq) of microbiome samples, integrated with the
+metagenomic and metatranscriptomic analysis of the same samples by [IMP](https://imp3.readthedocs.io/en/latest/).
+It processes intracellular (sRNA-Int) and extracellular (sRNA-Ext) libraries, separates human from microbial reads,
+classifies both against curated small-RNA databases, places the microbial small RNAs on the sample's own contigs,
+genes, bins and functions, compares them with metaT and metaG, and summarises a whole cohort with group statistics.
 
-- Live docs: https://genomeanalysislcsb.github.io/sRNA-IMP/
-- GitHub repository: https://github.com/genomeanalysislcsb/sRNA-IMP
+**Documentation:** <https://genomeanalysislcsb.github.io/sRNA-IMP/>
 
-`sRNA-IMP` is a native, modular small-RNA pipeline for microbiome-associated smallRNA-seq data. It integrates the optimized logic from the existing preprocessing, host, non-host, assembly-based, and novel ncRNA discovery workflows into one config-driven entrypoint.
+## What it does
 
-## What It Does
+| level | steps |
+|---|---|
+| per library (one sample-sheet row) | trimming + FastQC → library QC → human / non-human split → human classes (miRNA, tRNA, rRNA, other) → microbial classes (RiboDetector rRNA + Kraken 2/Bracken taxonomy, tRNA, miRNA-like, Rfam) → mapping to the sample's co-assembly (sense / antisense per gene and function) → novel ncRNA loci (incl. rescue of unannotated rRNA genes) → tRNA/rRNA fragments and RNA integrity → bins → CRISPR arrays |
+| per sample | sRNA-Ext vs sRNA-Int vs metaT vs metaG comparisons; PDF/HTML report with QC verdict, MultiQC tables and automated Methods (STAR Protocols or Nature style) |
+| cohort | metadata, QC-based exclusion, group tests, Bray–Curtis / PERMANOVA / NMDS, miRNAs, RNA classes, KEGG/Pfam functions, antisense index, block designs (site, family), covariate-adjusted models — all in Python (no R) |
 
-For each sample, `sRNA-IMP` can:
-- trim and QC raw single-end smallRNA FASTQ input
-- split reads into host and non-host fractions using required host genome or transcriptome references
-- classify host small RNAs
-- classify non-host small RNAs
-- quantify reads against an optional assembly and annotation
-- predict novel ncRNA candidates from non-host reads and an optional assembly
-- aggregate summaries and build a per-sample MultiQC report
-
-## Input Model
-
-Required per sample:
-- one raw, non-filtered single-end smallRNA FASTQ file
-- one or more host reference FASTA files, or prebuilt host Bowtie indexes, for host/non-host splitting
-
-Optional per sample:
-- assembly FASTA
-- assembly GFF
-
-The host does not have to be human. It can be mouse, yeast, tomato, or another relevant host genome or transcriptome.
-
-## Main Features
-
-- native modular workflows instead of wrapping the legacy bash drivers
-- single-sample and sequential multi-sample execution
-- sample names defined in config and used consistently in the output tree
-- automatic preprocessing prerequisite for downstream workflows
-- resume support through per-workflow completion markers
-- shared host Bowtie indexes built next to the original reference FASTA files and reused across samples
-- automatic adapter trimming through `fastp` by default
-- per-sample MultiQC reporting
-
-## Workflows
-
-Available workflows:
-- `preprocessing`
-- `host_specific`
-- `nonhost_specific`
-- `assembly_based`
-- `novel_ncrna`
-- `summary`
-- `all`
-
-## Config Styles
-
-### Single sample
-
-Use [config.example.yaml](/scratch/users/pmay/sRNA/sRNA-IMP/config/config.example.yaml) as the template for one sample per config file.
-
-### Multi-sample
-
-Use [multisample.example.yaml](/scratch/users/pmay/sRNA/sRNA-IMP/config/multisample.example.yaml) for a shared project-level config with a `samples:` list. Shared workflow, tool, and preprocessing settings stay at the top level, while each sample provides its own `name`, `fastq`, and optional assembly inputs.
-
-### TSV-Driven Multi-sample
-
-If you prefer to keep sample-specific inputs in a table, use [multisample.tsv_config.example.yaml](/scratch/users/pmay/sRNA/sRNA-IMP/config/multisample.tsv_config.example.yaml) together with [samples.example.tsv](/scratch/users/pmay/sRNA/sRNA-IMP/config/samples.example.tsv). In that mode, the YAML file keeps workflow parameters, database paths, and tool settings, while the TSV supplies `name`, `type`, `fastq`, `assembly_fasta`, and `assembly_gff` per sample.
-
-## Run
-
-Single sample:
+## Quick start
 
 ```bash
-python scripts/srna_imp.py --config config/BHC01.yaml --workflow all
+# environments (micromamba or conda)
+micromamba create -p envs/gut_srna_pipeline -f envs/gut_srna_pipeline.yml
+micromamba create -p envs/ncrna_discovery   -f envs/ncrna_discovery.yml
+micromamba create -p envs/ribodetector      -f envs/ribodetector.yml
+micromamba create -p envs/multiqc           -f envs/multiqc.yml      # optional
+
+# set database / environment paths in srna_pipeline.config.sh, then
+./srna_pipeline.sh -s samples.tsv -o out --check                 # environment, databases, inputs
+./submit_srna_pipeline.sh -s samples.tsv -o out -n 16 --mem 64G  # SLURM: all rows, then --compare --report --cohort
+./srna_status.sh -s samples.tsv -o out                           # done / running / failed per row
 ```
 
-Multi-sample sequential run:
+See [Installation](https://genomeanalysislcsb.github.io/sRNA-IMP/installation/),
+[Running](https://genomeanalysislcsb.github.io/sRNA-IMP/running/) and the
+[configuration reference](https://genomeanalysislcsb.github.io/sRNA-IMP/configuration/).
 
-```bash
-python scripts/srna_imp.py --config config/multisample.example.yaml --workflow all
-```
+## Repository layout
 
-TSV-driven multi-sample run:
+| path | content |
+|---|---|
+| `srna_pipeline.sh` | the pipeline (modules per row, `--compare`, `--report`, `--cohort`) |
+| `srna_pipeline.config.sh` | databases, environments and parameters (adapt the paths to your system) |
+| `submit_srna_pipeline.sh`, `srna_status.sh` | SLURM submission and run status / resubmission |
+| `srna_make_samples.sh`, `sample.template.tsv`, `samples.example.tsv` | sample sheet from a template and an ID list |
+| `metadata.template.tsv`, `scripts/srna_prepare_metadata.py` | cohort metadata |
+| `srna_pack_summary.sh` | pack the summary tables and reports of a run |
+| `scripts/` | Python helpers (counting, fragments, integrity, CRISPR, comparisons, reports, cohort statistics, Methods) |
+| `envs/` | conda / micromamba environments |
+| `docs/`, `mkdocs.yml` | documentation (MkDocs Material, deployed to GitHub Pages) |
 
-```bash
-python scripts/srna_imp.py --config config/multisample.tsv_config.example.yaml --workflow all
-```
+## Citation and license
 
-Run only selected samples from a multi-sample config:
-
-```bash
-python scripts/srna_imp.py --config config/multisample.example.yaml --workflow all --sample BHC01 --sample BHC02
-```
-
-Keep going when one sample fails:
-
-```bash
-python scripts/srna_imp.py --config config/multisample.example.yaml --workflow all --keep-going
-```
-
-## Output Layout
-
-```text
-results/<TYPE>/<sample_name>/
-├── Analysis/
-│   ├── annotation/
-│   ├── taxonomy/kraken/
-│   └── <TYPE>/
-│       ├── human/
-│       ├── nonhuman/
-│       └── novel/
-├── Assembly/
-├── Preprocessing/<TYPE>/
-├── Stats/<TYPE>/
-└── logs_cluster_jobs/<TYPE>/
-```
-
-
-## Database Setup
-
-The repository now includes a reusable database setup helper bundle:
-- docs guide: `docs/database_setup.md`
-- setup script: `scripts/download_and_setup_databases.sh`
-- editable path config: `config_examples/database_paths.example.sh`
-- helper environment: `envs/database_setup.yml`
-
-These files document and automate the directly downloadable database components while leaving curated local FASTA placeholders for references that are better assembled explicitly per project.
-
-## Publishing
-
-The repository now includes:
-- Read the Docs configuration in `.readthedocs.yml`
-- a GitHub Pages deployment workflow in `.github/workflows/docs-pages.yml`
-- live documentation at https://genomeanalysislcsb.github.io/sRNA-IMP/
-
-GitHub Pages should deploy automatically from `main` via **GitHub Actions**.
-
-## Tested Context
-
-The current native pipeline and examples have been exercised in the Luxembourg HPC environment used during development, with micromamba-managed tooling and real sample runs such as `BHC01` and `BHC02`.
-
-## GitHub Readiness
-
-The project now includes:
-- a repo-oriented `.gitignore`
-- a multi-sample example config
-- a basic GitHub Actions syntax-check workflow at `.github/workflows/python-syntax.yml`
-
-The codebase is versioned on GitHub and published under the MIT license.
-
-## Notes
-
-- downstream workflows automatically run preprocessing first when needed
-- assembly-based and novel workflows require `input.assembly_fasta` and `input.assembly_gff`
-- helper Python scripts from `/scratch/users/pmay/sRNAs/scripts` are still reused where that is efficient and stable
-- `ribodetector_cpu` is expected from the Conda environment and is not configured per sample
-
+LCSB BioCore, University of Luxembourg. Please cite the repository and the tools listed in the automated Methods
+of your run. License: see [LICENSE](LICENSE).

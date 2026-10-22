@@ -1,0 +1,11 @@
+# sample_id	type	raw_fastq	assembly	gff	contig2bin	gtdbtk	metaT_features	metaT_contigs	metaG_features	metaG_contigs
+# Tab- or space-separated. raw_fastq, assembly and gff are required (full paths).
+# Columns 6-11 are optional per-sample inputs (full path or "-"); they may be given on any row of the sample
+# (e.g. only on the first) and are used by the bins module and the --compare step.
+# metaG_features: "-" = mg.ID.* tables found in metaT_features (IMP annotation dir or tar).
+# metaT_contigs / metaG_contigs: IMP Stats dir or Stats/<mt|mg>/mgmt.assembly.contig_read_count.txt.gz (or a tar).
+# The same sample may appear with several types; Assembly/ and Analysis/annotation/ are shared between them.
+sample_id	type	raw_fastq	assembly	gff	contig2bin	gtdbtk	metaT_features	metaT_contigs	metaG_features	metaG_contigs
+BXXX1	sRNA-Ext	/path/to/raw/sRNA-Ext/BXXX1.fastq.gz	/mnt/isilon/projects/ecosystem_biology/expobiome/IMP/imp_intra_MGMT/bxxx1/Assembly/mgmt.assembly.merged.fa.gz	/mnt/isilon/projects/ecosystem_biology/expobiome/IMP/imp_intra_MGMT/bxxx1/Analysis/annotation/annotation_CDS_RNA_hmms.gff.gz	/path/to/BXXX1/Binning/selected_DASTool_contig2bin.tsv	/path/to/BXXX1/Binning/gtdbtk.bac120.summary.tsv	/path/to/BXXX1/Analysis/BXXX1.metaT.features.featureCounts.txt	/path/to/BXXX1/Analysis/BXXX1.metaT.contigs.featureCounts.txt
+BXXX1	sRNA-Int	/path/to/raw/sRNA-Int/BXXX1.fastq.gz	/mnt/isilon/projects/ecosystem_biology/expobiome/IMP/imp_intra_MGMT/bxxx1/Assembly/mgmt.assembly.merged.fa.gz	/mnt/isilon/projects/ecosystem_biology/expobiome/IMP/imp_intra_MGMT/bxxx1/Analysis/annotation/annotation_CDS_RNA_hmms.gff.gz	-	-	-	-
+BXXX2	sRNA-Ext	/path/to/raw/sRNA-Ext/BXXX2.fastq.gz	/mnt/isilon/projects/ecosystem_biology/expobiome/IMP/imp_intra_MGMT/bxxx2/Assembly/mgmt.assembly.merged.fa.gz	/mnt/isilon/projects/ecosystem_biology/expobiome/IMP/imp_intra_MGMT/bxxx2/Analysis/annotation/annotation_CDS_RNA_hmms.gff.gz	/path/to/BXXX2/Binning/selected_DASTool_contig2bin.tsv	/path/to/BXXX2/Binning/gtdbtk.bac120.summary.tsv	/path/to/BXXX2/Analysis/BXXX2.metaT.features.featureCounts.txt	/path/to/BXXX2/Analysis/BXXX2.metaT.contigs.featureCounts.txt

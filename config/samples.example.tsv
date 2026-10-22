@@ -1,3 +1,0 @@
-name	type	fastq	assembly_fasta	assembly_gff
-BHC01	sRNA-Ext	/path/to/BHC01.fastq.gz	/path/to/BHC01/assembly.fa.gz	/path/to/BHC01/annotation.gff.gz
-BHC02	sRNA-Ext	/path/to/BHC02.fastq.gz	/path/to/BHC02/assembly.fa.gz	/path/to/BHC02/annotation.gff.gz

@@ -1,0 +1,23 @@
+# main environment: qc, contam, prep, split, human, nonhuman, assembly, compare, report
+# versions as in the production env (2026-10); create:  micromamba create -n gut_srna_pipeline -f envs/gut_srna_pipeline.yml
+name: gut_srna_pipeline
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11.14
+  - cutadapt=5.2          # --poly-a
+  - fastqc=0.13.0
+  - bowtie=1.3.1
+  - samtools=1.23
+  - seqkit=2.13.0
+  - kraken2=2.17.1
+  - bracken=3.1
+  - matplotlib=3.11.2     # --report, --cohort
+  - numpy=2.4.6           # --cohort (statistics), --report
+  - openpyxl              # optional: --cohort with an .xlsx metadata sheet (not in the production env v2; TSV/CSV need no extra package)
+  - pigz=2.8              # optional, faster (de)compression
+  - bedops=2.4.42         # gff2bed (prep)
+  - gawk
+  - pandoc=3.12.1         # optional: METHODS_DOCX=1 (.docx of the automated Methods)
+  # RiboDetector: own env (envs/ribodetector.yml), called by full path (RIBO_DETECTOR_CPU)

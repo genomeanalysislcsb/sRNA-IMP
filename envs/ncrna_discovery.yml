@@ -1,0 +1,17 @@
+# novel, fragments, bins
+# create:  micromamba create -n ncrna_discovery -f envs/ncrna_discovery.yml
+name: ncrna_discovery
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11.15
+  - samtools=1.23
+  - bedtools=2.31.1       # merge / map / intersect / getfasta
+  - seqkit=2.13.0
+  - aragorn=1.2.41        # RUN_ARAGORN=1
+  - infernal=1.1.5        # cmscan, RUN_CMSCAN=1
+  - viennarna=2.7.2       # RNAfold, RUN_RNAFOLD=1
+  - trnascan-se=2.0.12    # optional, RUN_TRNASCAN=1
+  - gawk
+  - coreutils
