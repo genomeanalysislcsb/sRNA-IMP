@@ -1,0 +1,12 @@
+# RiboDetector (nonhuman module, rRNA filter), called by full path: RIBO_DETECTOR_CPU=<env>/bin/ribodetector_cpu
+# own env because of PyTorch (large, strict Python/numpy constraints); CPU version is used
+# versions as in the IMP env used so far (ribodetector 0.3.1, pytorch 2.4.0 CPU, python 3.10)
+# create:  micromamba create -n ribodetector -f envs/ribodetector.yml
+name: ribodetector
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.10
+  - ribodetector=0.3.1
+  - pytorch=2.4.0=cpu*   # CPU build

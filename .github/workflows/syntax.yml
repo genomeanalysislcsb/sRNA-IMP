@@ -1,0 +1,13 @@
+name: syntax
+# Python compile check of the helper scripts and bash -n of the pipeline scripts
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m py_compile scripts/*.py
+      - run: for f in *.sh; do bash -n "$f" || exit 1; done

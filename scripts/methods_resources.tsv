@@ -1,0 +1,19 @@
+# Resources for the automated Methods (srna_methods.py). Edit name / version / source / identifier once for your
+# installation; values starting with "set" are printed as [CHECK: …]. Lines starting with # are ignored.
+# name is used in the running text ("... to <name> (<version>)"), so keep it short.
+# key	name	version	source	identifier	references
+host_genome	the human T2T-CHM13v2.0 assembly	v2.0	NCBI	GCF_009914755.1	t2t
+hsa_mirna	miRBase human mature miRNAs	release 22.1	miRBase	https://www.mirbase.org	mirbase
+hsa_trna	GtRNAdb human nuclear and mitochondrial tRNAs	set version	GtRNAdb	https://gtrnadb.ucsc.edu	gtrnadb
+hsa_rrna	human nuclear and mitochondrial rRNA sequences	set version	set source	set identifier	
+hsa_other	human snRNA, snoRNA, Y RNA, vault RNA and other ncRNA sequences	set version	set source	set identifier	
+trna_all	GtRNAdb bacterial and archaeal tRNAs	set version	GtRNAdb	https://gtrnadb.ucsc.edu	gtrnadb
+mirna_euk	miRBase eukaryotic mature miRNAs	release 22.1	miRBase	https://www.mirbase.org	mirbase
+rfam	Rfam	set version	Rfam	https://rfam.org	rfam
+kraken_db	a Kraken 2 database of GTDB genome representatives	build 2025-06-09	set source	k2_gtdb_genome_reps_20250609	gtdb
+contaminants	the PhiX174 genome and UniVec_Core	set version	NCBI	https://ftp.ncbi.nlm.nih.gov/pub/UniVec/	
+imp	IMP3	set version	set source	set identifier	imp
+annotation	Bakta	set version	Bakta	https://github.com/oschwengers/bakta	bakta
+functional	Mantis	set version	Mantis	https://github.com/PedroMTQ/mantis	mantis
+binning	MetaWRAP	set version	MetaWRAP	https://github.com/bxlab/metaWRAP	metawrap
+bin_taxonomy	GTDB-Tk	set version	GTDB-Tk	https://github.com/Ecogenomics/GTDBTk	gtdbtk,gtdb

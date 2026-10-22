@@ -1,0 +1,9 @@
+# optional: MultiQC over all FastQC / cutadapt outputs and the pipeline's *_mqc.tsv tables (run by --cohort)
+# create:  micromamba create -p $ENVS_DIR/multiqc -f envs/multiqc.yml   ->  MULTIQC=$ENVS_DIR/multiqc/bin/multiqc
+name: multiqc
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - multiqc=1.25.1

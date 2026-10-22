@@ -1,0 +1,22 @@
+# QC rules for srna_report.py / srna_cohort.py (QC_RULES in the config; copy and edit for a study)
+# rule        unique name
+# metric      a per-library metric (see docs: QC flags), fastqc_<raw|trimmed>_<module> (PASS/WARN/FAIL),
+#             or missing_modules / missing_compare
+# op          < <= > >= == !=
+# threshold   number, or PASS/WARN/FAIL for FastQC modules
+# level       WARN or FAIL (a library with any FAIL is excluded from the cohort statistics by default)
+# types       * or comma-separated sRNA types the rule applies to
+rule	metric	op	threshold	level	types	description
+incomplete	missing_modules	>	0	FAIL	*	pipeline modules not finished
+raw_low	raw_reads	<	1000000	FAIL	*	fewer than 1 M raw reads
+raw_lowish	raw_reads	<	3000000	WARN	*	fewer than 3 M raw reads
+trimmed_low	trimmed_reads	<	500000	FAIL	*	fewer than 0.5 M reads after trimming
+trimmed_lowish	trimmed_reads	<	2000000	WARN	*	fewer than 2 M reads after trimming
+trimmed_share	trimmed_fraction	<	0.2	WARN	*	less than 20 % of raw reads pass trimming
+dimers_high	adapter_dimer_fraction	>	0.5	FAIL	*	more than 50 % adapter dimers
+dimers	adapter_dimer_fraction	>	0.2	WARN	*	more than 20 % adapter dimers
+unmapped	assembly_mapped_fraction	<	0.3	FAIL	*	less than 30 % of non-human reads map to the sample's contigs
+unmappedish	assembly_mapped_fraction	<	0.5	WARN	*	less than 50 % of non-human reads map to the sample's contigs
+quality	fastqc_trimmed_per_base_sequence_quality	==	FAIL	WARN	*	FastQC per-base quality FAIL after trimming
+rin_low	qc_lRNA_RIN	<	5	WARN	sRNA-Int	RIN of the long-RNA fraction below 5 (intracellular RNA degraded)
+no_compare	missing_compare	>	0	WARN	*	no sRNA vs metaT/metaG comparison

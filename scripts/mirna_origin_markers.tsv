@@ -1,0 +1,14 @@
+# Human miRNA origin markers for srna_report.py (human page: "human miRNA origin").
+# One row per group. Columns (tab-separated):
+#   group       name shown in the report (rows with a group starting with "_" carry only references)
+#   color       hex color of the group in the plot
+#   mirnas      comma-separated mature miRNA names WITHOUT "hsa-" (miRBase naming, e.g. miR-451a, miR-192-5p)
+#   references  full references, separated by " | "
+# Matching is exact by name; a miRNA should be listed in one group only. Edit freely and point
+# REPORT_MIRNA_MARKERS (config) or --mirna-markers (srna_report.py) to your copy.
+group	color	mirnas	references
+intestinal / epithelial	#009E73	miR-192-5p,miR-194-5p,miR-215-5p,miR-200a-3p,miR-200b-3p,miR-200c-3p,miR-141-3p,miR-429,miR-375-3p,miR-148a-3p,miR-196b-5p	Landgraf P et al. (2007) A mammalian microRNA expression atlas based on small RNA library sequencing. Cell 129:1401-1414 | Ludwig N et al. (2016) Distribution of miRNA expression across human tissues. Nucleic Acids Res 44:3865-3877 | Gregory PA et al. (2008) The miR-200 family and miR-205 regulate epithelial to mesenchymal transition by targeting ZEB1 and SIP1. Nat Cell Biol 10:593-601
+blood	#D55E00	miR-451a,miR-486-5p,miR-144-3p,miR-144-5p,miR-16-5p,miR-92a-3p	Pritchard CC et al. (2012) Blood cell origin of circulating microRNAs: a cautionary note for cancer biomarker studies. Cancer Prev Res 5:492-497 | Ludwig N et al. (2016) Distribution of miRNA expression across human tissues. Nucleic Acids Res 44:3865-3877
+immune	#0072B2	miR-142-3p,miR-142-5p,miR-150-5p,miR-223-3p,miR-155-5p,miR-146a-5p	Landgraf P et al. (2007) A mammalian microRNA expression atlas based on small RNA library sequencing. Cell 129:1401-1414 | Pritchard CC et al. (2012) Blood cell origin of circulating microRNAs: a cautionary note for cancer biomarker studies. Cancer Prev Res 5:492-497
+muscle (diet?)	#CC79A7	miR-1-3p,miR-206,miR-133a-3p,miR-133b	McCarthy JJ (2008) MicroRNA-206: the skeletal muscle-specific myomiR. Biochim Biophys Acta 1779:682-691 | Ludwig N et al. (2016) Distribution of miRNA expression across human tissues. Nucleic Acids Res 44:3865-3877
+_fecal miRNA origin			Liu S et al. (2016) The host shapes the gut microbiota via fecal microRNA. Cell Host Microbe 19:32-43
