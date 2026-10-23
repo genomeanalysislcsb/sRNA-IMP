@@ -604,6 +604,24 @@ def nmds(D, k=2, starts=10, max_iter=300, eps=1e-7, seed=1):
     return X, float(st)
 
 
+def isolated_samples(D, max_frac=0.05):
+    """indices of samples that are further from every other sample than any two remaining samples are from each
+    other (min distance to the rest > max distance within the rest). Such a sample makes NMDS degenerate: the rest
+    collapse to one point and stress goes to 0. Removed one at a time, at most max_frac of the samples."""
+    keep = list(range(D.shape[0]))
+    out = []
+    while len(keep) > 6 and len(out) < max(1, int(max_frac * D.shape[0])):
+        sub = D[np.ix_(keep, keep)]
+        off = sub + np.diag([np.inf] * len(keep))
+        nearest = off.min(axis=1)
+        i = int(np.argmax(nearest))
+        rest = [j for j in range(len(keep)) if j != i]
+        if nearest[i] <= sub[np.ix_(rest, rest)].max():
+            break
+        out.append(keep.pop(i))
+    return out
+
+
 def permanova(D, labels, perms=999, seed=1, strata=None):
     labels = np.asarray(labels)
     lv = sorted(set(labels))
@@ -1352,18 +1370,27 @@ class Cohort:
     def nmds_result(self, t, mx):
         """(keys, NMDS coordinates, stress, PERMANOVA of the group) on Bray-Curtis of the profile mx (cached)"""
         if not hasattr(self, "_nmds"):
-            self._nmds = {}
+            self._nmds, self._nmds_out = {}, {}
         if (t, mx) not in self._nmds:
             res = None
             if not (mx == "mirna" and t not in self.mirna_types()):
                 ks, feats, Cm, Rl = self.rel_matrix(t, mx, min_prev=0.0, min_reads=1)
                 if len(ks) >= 6 and feats:
                     D = bray_curtis(Rl)
-                    X, st = nmds(D, k=2, starts=self.a.nmds_starts)
                     lab = [self.group(k[0]) for k in ks]
                     ok = [i for i, g in enumerate(lab) if g != "NA"]
                     pm = permanova(D[np.ix_(ok, ok)], [lab[i] for i in ok], perms=self.a.permutations) \
                         if len(set(lab[i] for i in ok)) > 1 else (float("nan"),) * 3
+                    # samples with a completely separate composition make the NMDS degenerate: ordinate without
+                    # them (PERMANOVA above keeps all samples) and name them on the plot
+                    iso = isolated_samples(D)
+                    if iso:
+                        self._nmds_out[(t, mx)] = [ks[i][0] for i in iso]
+                        sys.stderr.write("[cohort] NMDS %s %s: left out (isolated composition): %s\n" % (
+                            t, mx, ", ".join(self._nmds_out[(t, mx)])))
+                        kk = [i for i in range(len(ks)) if i not in iso]
+                        ks, D = [ks[i] for i in kk], D[np.ix_(kk, kk)]
+                    X, st = nmds(D, k=2, starts=self.a.nmds_starts)
                     res = (ks, X, st, pm)
             self._nmds[(t, mx)] = res
         return self._nmds[(t, mx)]
@@ -2067,6 +2094,10 @@ def page_nmds(pdf, C):
             ax.set_title("%s   stress %.3f (%s)" % (t, st, quality), loc="left", fontsize=9)
             ax.text(0.01, 0.01, "PERMANOVA group: R² %s, p %s" % (fmt(pm[1], 2), fmt(pm[2], 2)), transform=ax.transAxes,
                     fontsize=7, fontweight="bold" if sig else "normal", color="#B00000" if sig else "#333")
+            out = C._nmds_out.get((t, mx))
+            if out:
+                ax.text(0.01, 0.045, "not shown (composition unlike all others): %s" % R.short(", ".join(out), 60),
+                        transform=ax.transAxes, fontsize=6.5, color="#B00000")
             ax.set_xlabel("NMDS1")
             ax.set_ylabel("NMDS2")
             ax.set_aspect("equal", adjustable="datalim")
@@ -2397,9 +2428,9 @@ MODEL_LABELS = {"metrics": "library metrics", "genus": "genera (CLR)", "family":
 
 
 
-OVERVIEW_SETS = (("genus", "genera"), ("family", "families"), ("rna_class", "RNA classes"),
+OVERVIEW_SETS = (("genus", "genera"), ("family", "families"), ("rna_class", "RNA cl."),
                  ("fn_kegg_module", "KEGG mod."), ("fn_kegg_ko", "KOs"), ("fn_pfam", "Pfam"),
-                 ("metrics", "metrics"), ("asidx_kegg_ko", "AS index KO"))
+                 ("metrics", "metrics"), ("asidx_kegg_ko", "AS-idx KO"))
 
 
 def page_models_overview(pdf, C):
@@ -2435,7 +2466,7 @@ def page_models_overview(pdf, C):
         fig = cpage(pdf, "adjusted models — overview%s" % ("" if start == 0 else " (continued)"),
                     "term of interest per model (the first term of the formula) · features with q < %g / "
                     "tested per outcome set · ↑/↓: higher / lower with the term (adjusted)" % SIG_Q, "models_overview")
-        ax = fig.add_axes([0.02, 0.04, 0.96, 0.80])
+        ax = fig.add_axes([0.03, 0.04, 0.92, 0.80])
         R.table(ax, rows[start:start + per], ["model", "fraction", "term", "n"] + [lab for _, lab in OVERVIEW_SETS] +
                 ["strongest results"], fontsize=5.8, left=(0, 1, 2, 12), rowscale=1.1,
                 col_widths=[0.05, 0.04, 0.12, 0.03] + [0.052] * len(OVERVIEW_SETS) + [0.344])
