@@ -434,7 +434,9 @@ def design_matrix(rows, terms, kinds, levels_first=None):
         else:
             lv = sorted(set(vals), key=lambda v: (-vals.count(v), v))
             ref = (levels_first or {}).get(t)
-            ref = ref if ref in lv else lv[0]
+            if ref not in lv:                       # natural reference for yes/no or normal/abnormal variables
+                ref = next((v for v in lv if str(v).strip().lower() in ("no", "none", "normal", "no problems", "0",
+                                                                         "false", "never")), lv[0])
             for l in [x for x in lv if x != ref]:
                 cols.append(np.array([1.0 if v == l else 0.0 for v in vals]))
                 names.append("%s: %s vs %s" % (t, l, ref))
@@ -447,6 +449,34 @@ def design_matrix(rows, terms, kinds, levels_first=None):
         else:
             info.append("dropped (collinear): %s" % names[j])
     return X[:, keep], [names[j] for j in keep], [owner[j] for j in keep], info
+
+
+MODEL_MIN_N = 20          # minimum libraries per model fit (and >= 3 x terms)
+MODEL_MIN_N_ASIDX = 40    # antisense index: only libraries with >= 10 reads on the term count -> require more
+MODEL_MIN_LEVEL = 3       # minimum libraries in and outside every 0/1 design column (e.g. a group or site level)
+MODEL_MAX_LEVERAGE = 0.95 # fits with a library of leverage above this are skipped (HC3 SE undefined / collapses)
+
+
+def design_ok(X, off=0):
+    """enough libraries for a stable fit: n, libraries per categorical level, no library that alone carries a term"""
+    n, p = X.shape
+    if n < max(MODEL_MIN_N, 3 * (p - off)):
+        return False
+    for c in range(1 if off == 0 else off, p):
+        col = X[:, c]
+        u = np.unique(col[~np.isnan(col)])
+        if len(u) <= 2:                                  # dummy (0/1) or a binary numeric term
+            k = int(np.sum(col == u.max())) if len(u) else 0
+            if min(k, n - k) < MODEL_MIN_LEVEL:
+                return False
+    try:
+        Xc = X[:, off:]
+        h = np.einsum("ij,ji->i", Xc, np.linalg.pinv(Xc.T @ Xc) @ Xc.T)
+        if h.max() > MODEL_MAX_LEVERAGE:
+            return False
+    except np.linalg.LinAlgError:
+        return False
+    return True
 
 
 def ols_hc3(X, Y):
@@ -1367,7 +1397,25 @@ class Cohort:
         ms = self.models()
         if not ms or mi >= len(ms):
             return []
-        return [t.strip() for t in ms[mi].split("+") if t.strip()]
+        return [t.strip() for t in ms[mi].split("|", 1)[0].split("+") if t.strip()]
+
+    def model_subset(self, mi=0):
+        """'terms | column=value1/value2' fits the model on the libraries of these samples only
+        (e.g. 'levodopa+bristol+sex+age | group=PD') -> (column, {values}) or None"""
+        ms = self.models()
+        if not ms or mi >= len(ms) or "|" not in ms[mi]:
+            return None
+        cond = ms[mi].split("|", 1)[1].strip()
+        if "=" not in cond:
+            return None
+        col, vals = cond.split("=", 1)
+        return col.strip(), {v.strip() for v in vals.split("/") if v.strip()}
+
+    def model_focus(self, mi=0):
+        """term of interest: the first term of the formula (group in 'group+site+…', stool consistency in
+        'bristol+laxative+group+…', a medication in 'levodopa+… | group=PD')"""
+        tm = self.model_terms(mi)
+        return tm[0] if tm else None
 
     def model_data(self, t, mi=0):
         """(libraries, X, column names, column owners, info) for the model in fraction t: complete cases of the
@@ -1391,9 +1439,14 @@ class Cohort:
                     sys.stderr.write("[cohort] model term '%s' is neither a metadata column nor a metric — ignored\n" % tm)
             use = [tm for tm in terms if tm in kinds]
             var = self.model_variant(mi)
+            subset = self.model_subset(mi)
             for k in sorted(self.keys(t)):
                 if var and self.block_of(k) == "NA":
                     continue
+                if subset:
+                    sv = self.group(k[0]) if subset[0] == self.group_col else self.meta_val(k[0], subset[0])
+                    if sv not in subset[1]:
+                        continue
                 r = {}
                 for tm in use:
                     if tm == self.group_col:
@@ -1481,6 +1534,8 @@ class Cohort:
                 if var == "within" and kk is not None:      # Xs rows are already block-centred over all keys
                     Xs = np.column_stack([np.zeros(len(rowsel)), demean_within(Xs[:, 1:], [blocks[i] for i in rowsel])])
                 if not np.isnan(Y).any():
+                    if not design_ok(Xs, off):
+                        continue
                     B, SE, T, P, df = fit(Xs, Y, rowsel)
                     for j, f in enumerate(feats):
                         for c in range(1, Xs.shape[1]):
@@ -1489,13 +1544,14 @@ class Cohort:
                 else:                                       # per feature on its complete cases
                     for j, f in enumerate(feats):
                         ok = ~np.isnan(Y[:, j])
-                        if ok.sum() < Xs.shape[1] + 3 or np.nanstd(Y[ok, j]) == 0:
+                        if ok.sum() < Xs.shape[1] + 3 or np.nanstd(Y[ok, j]) == 0 or \
+                                len(np.unique(Y[ok, j])) < 5 or (what.startswith("asidx_") and ok.sum() < MODEL_MIN_N_ASIDX):
                             continue
                         sel = [rowsel[i] for i in np.where(ok)[0]]
                         Xo = Xs[ok]
                         if var == "within":
                             Xo = np.column_stack([np.zeros(len(sel)), demean_within(Xo[:, 1:], [blocks[i] for i in sel])])
-                        if np.linalg.matrix_rank(Xo[:, off:]) < Xo.shape[1] - off:
+                        if np.linalg.matrix_rank(Xo[:, off:]) < Xo.shape[1] - off or not design_ok(Xo, off):
                             continue
                         B, SE, T, P, df = fit(Xo, Y[ok, j][:, None], sel)
                         for c in range(1, Xo.shape[1]):
@@ -1513,7 +1569,8 @@ class Cohort:
         md = self.model_data(t, mi)
         if not md:
             return []
-        return [n for n, o in zip(md[2], md[3]) if o == self.group_col]
+        focus = self.model_focus(mi)
+        return [n for n, o in zip(md[2], md[3]) if o == focus]
 
     def qc_summary(self):
         """per type and group: libraries, PASS / WARN / FAIL, excluded; chi-square of exclusion vs group"""
@@ -1642,6 +1699,13 @@ EXPLAIN = {
         "MaAsLin2, here in Python). Robust (HC3) standard errors; BH-FDR within each outcome set and term. Terms "
         "that are fully confounded with others are dropped and named in red. Related samples (families, repeated "
         "visits) are not modelled as random effects.",
+    "models_overview":
+        "All adjusted models at a glance. For each model the term of interest is shown — the first term of the formula "
+        "(the group contrasts in 'group+…', otherwise e.g. stool consistency, laxatives, a medication within one group) "
+        "— with the number of features that change at q below the threshold per outcome set and the strongest "
+        "results. Compare rows: a group difference that disappears when stool consistency or constipation is added "
+        "is likely explained by them. Models restricted to a subgroup are marked [group]. Small levels "
+        "(few samples) give large, fragile estimates.",
     "paired":
         "sRNA-Int (cell fraction) vs sRNA-Ext (cell-free) of the same samples, paired Wilcoxon signed-rank test with "
         "BH-FDR. Consistent differences describe what is released into the cell-free fraction.",
@@ -2332,6 +2396,55 @@ MODEL_LABELS = {"metrics": "library metrics", "genus": "genera (CLR)", "family":
                 "asidx_kegg_pathway": "antisense index: pathways", "asidx_kegg_ko": "antisense index: KOs"}
 
 
+
+OVERVIEW_SETS = (("genus", "genera"), ("family", "families"), ("rna_class", "RNA classes"),
+                 ("fn_kegg_module", "KEGG mod."), ("fn_kegg_ko", "KOs"), ("fn_pfam", "Pfam"),
+                 ("metrics", "metrics"), ("asidx_kegg_ko", "AS index KO"))
+
+
+def page_models_overview(pdf, C):
+    """one table over all models: for the term of interest of every model (group contrasts, or the first term)
+    the number of features with q < SIG_Q per outcome set, and the strongest results"""
+    if not C.models():
+        return False
+    rows, flags = [], []
+    for mi in range(len(C.models())):
+        for t in C.types:
+            md = C.model_data(t, mi)
+            if not md:
+                continue
+            for gt in C.group_terms(t, mi):
+                cells, best = [], []
+                for what, _ in OVERVIEW_SETS:
+                    res = [r for r in C.model_fit(t, what, mi) if r[3] == gt]
+                    sig = [r for r in res if isnum(r[8]) and r[8] < SIG_Q]
+                    cells.append("%d / %d" % (len(sig), len(res)) if res else "–")
+                    best += [(r[8], what, r) for r in sig]
+                best.sort(key=lambda x: x[0])
+                top = "; ".join("%s %s (q %s)" % (R.short(tname(r[0], 18), 20), "↑" if r[4] > 0 else "↓",
+                                                  fmt(q, 2)) for q, w, r in best[:2])
+                subset = C.model_subset(mi)
+                rows.append(["%s%s" % (C.model_label(mi), " [%s]" % "/".join(sorted(subset[1])) if subset else ""),
+                             t.replace("sRNA-", ""), R.short(gt.replace("%s: " % C.group_col, ""), 34),
+                             str(len(md[0]))] + cells + [top or "–"])
+                flags.append(bool(best))
+    if not rows:
+        return False
+    per = 30
+    for start in range(0, len(rows), per):
+        fig = cpage(pdf, "adjusted models — overview%s" % ("" if start == 0 else " (continued)"),
+                    "term of interest per model (the first term of the formula) · features with q < %g / "
+                    "tested per outcome set · ↑/↓: higher / lower with the term (adjusted)" % SIG_Q, "models_overview")
+        ax = fig.add_axes([0.02, 0.04, 0.96, 0.80])
+        R.table(ax, rows[start:start + per], ["model", "fraction", "term", "n"] + [lab for _, lab in OVERVIEW_SETS] +
+                ["strongest results"], fontsize=5.8, left=(0, 1, 2, 12), rowscale=1.1,
+                col_widths=[0.05, 0.04, 0.12, 0.03] + [0.052] * len(OVERVIEW_SETS) + [0.344])
+        bold_rows(ax, flags[start:start + per])
+        pdf.savefig(fig)
+        plt.close(fig)
+    return True
+
+
 def page_models(pdf, C):
     done = False
     for mi, formula in enumerate(C.models()):
@@ -2936,6 +3049,7 @@ def main():
             ("mirna_top", lambda: page_mirna_top(pdf, C)),
             ("functions", lambda: page_functions(pdf, C)),
             ("antisense", lambda: page_antisense(pdf, C)),
+            ("models_overview", lambda: page_models_overview(pdf, C)),
             ("models", lambda: page_models(pdf, C)),
             ("paired", lambda: page_paired(pdf, C)),
             ("omics", lambda: page_grid(pdf, C, "omics", "sRNA vs metaG / metaT", "per-sample Spearman ρ", [

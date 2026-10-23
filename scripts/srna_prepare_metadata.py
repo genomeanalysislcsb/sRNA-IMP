@@ -28,6 +28,11 @@ from collections import Counter
 NA = "NA"
 
 
+def merge_constipation(v):
+    """merge rare constipation_status levels (a level with one sample cannot be modelled)"""
+    return "Diarrhea" if v and v.lower().startswith("diarrhea") else v
+
+
 def clean(v):
     v = (v or "").strip()
     return NA if v == "" or v.upper() in ("NA", "N/A", "NA.NO") else v
@@ -104,7 +109,8 @@ def build_columns(args):
         ("stool", "bss: Normal / Constipation / Diarrhea", lambda r: clean(r.get("bss"))),
         ("laxative", "laxative use", lambda r: yesno(r.get("laxative"))),
         ("laxative_type", "laxative.simplified (No / Flax seed / Psyllium seed / PEG)", lambda r: clean(r.get("laxative.simplified"))),
-        ("constipation_status", "laxative.bss (e.g. untreated / resolved / non-resolved constipation)", lambda r: clean(r.get("laxative.bss"))),
+        ("constipation_status", "laxative.bss (e.g. untreated / resolved / non-resolved constipation); rare levels "
+         "merged: 'Diarrhea + lax.' -> 'Diarrhea'", lambda r: merge_constipation(clean(r.get("laxative.bss")))),
         ("probiotics", "probiotics", lambda r: yesno(r.get("probiotics"))),
         ("diet", "Omnivore / Vegetarian / Pescetarian / Vegan", lambda r: clean(r.get("diet"))),
         ("gluten_free", "gluten-free diet", lambda r: yesno(r.get("diet_glutenfree"))),

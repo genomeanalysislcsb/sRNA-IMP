@@ -523,12 +523,14 @@ def cohort_sections(X):
         items = [
             "Covariate-adjusted associations were estimated with per-feature linear models, analogous to the "
             "default model of MaAsLin2%s, implemented in Python: %s." % (
-                c("maaslin2"), "; ".join("M%d: feature ~ %s" % (i + 1, m.replace("+", " + "))
+                c("maaslin2"), "; ".join("M%d: feature ~ %s" % (i + 1, (m.split("|")[0].strip().replace("+", " + ") + (
+                    " (%s only)" % m.split("|", 1)[1].split("=", 1)[-1].replace("/", ", ").strip() if "|" in m else "")))
                                          for i, m in enumerate(models))),
             "Outcomes were centred log-ratio-transformed abundances%s (pseudocount 0.5; features with ≥ 10 reads in "
             "≥ 10 %% of the libraries), library metrics and antisense indices; categorical terms were coded as "
             "treatment contrasts against %s and numeric terms scaled to standard-deviation units; complete cases "
-            "only." % (c("clr", "gloor"), P("COHORT_REFERENCE", "the reference group")),
+            "only; features were modelled only with ≥ 20 libraries (≥ 40 for the antisense index; ≥ 3 per design level, "
+            "≥ 5 distinct values, maximum leverage ≤ 0.95)." % (c("clr", "gloor"), P("COHORT_REFERENCE", "the reference group")),
             "Coefficients were tested with heteroskedasticity-consistent (HC3) standard errors%s and *t* tests, "
             "with Benjamini–Hochberg adjustment per term within each outcome set." % c("hc3"),
         ]

@@ -329,6 +329,12 @@ the model type MaAsLin2 uses by default:
 COHORT_MODEL="group+site, group+site+sex+age, group+site+sex+age+constipation_status"
 ```
 
+A model can be restricted to some samples with `| column=value1/value2`, e.g.
+`levodopa+bristol+laxative+sex+age | group=PD` (PD only). The **term of interest** of a model — reported in the
+summary, the volcano plots and the key findings — is the **first term** of the formula (put `group` first for
+group comparisons) (e.g. `bristol+laxative+group+site+sex+age` reports the stool-consistency effect adjusted for group).
+Yes/no and normal/abnormal variables use "no" / "normal" as reference level.
+
 Several models are separated by commas (terms by `+`) and numbered M1, M2, … in the report, the key findings
 and the file names; `stats/cohort.models.tsv` lists the models with the number of libraries per fraction. Fitting
 a minimal model and adding covariates step by step shows whether a group difference is robust to them.
@@ -340,12 +346,17 @@ a minimal model and adding covariates step by step shows whether a group differe
 - **Terms**: metadata columns or library metrics (e.g. `qc_lRNA_RIN`, `integrity_tRNA_3p_CCA_fraction`) as
   technical covariates. Categorical terms become treatment contrasts (group reference: `COHORT_REFERENCE` or the
   first group), numeric terms are scaled to SD units. Complete cases only.
+- **Minimum data per fit**: a feature is modelled only with ≥ 20 libraries (≥ 40 for the antisense index, which
+  only counts libraries with ≥ 10 reads on the term; and ≥ 3 × the number of terms),
+  ≥ 3 libraries in and outside every group / site level, ≥ 5 distinct outcome values and no library with leverage
+  > 0.95 — otherwise single libraries carry a contrast and the robust SE collapses (spurious q ≪ 0.001).
 - **Estimation**: OLS with HC3 heteroscedasticity-robust standard errors, t-test, BH-FDR per term within each
   outcome set. Terms that are fully confounded with others are dropped and reported (in the Expobiome design,
   `group + site` is estimable because the controls come from both sites).
 - **Output**: `stats/cohort.<type>.model_<M>.<set>.tsv` (feature, n, term, estimate, SE, t, p, q for every term),
   `stats/cohort.<type>.model_<M>.design.tsv` (the design matrix); a summary page and volcano plots per group
-  contrast (genera, KEGG pathways, KO antisense index); significant group contrasts in the key findings.
+  contrast (genera, KEGG pathways, KO antisense index); significant group contrasts in the key findings; an
+  overview page compares the term of interest of all models side by side.
 - **Estimates**: for CLR outcomes, the difference in log abundance relative to the sample's mean feature
   (≈ log fold change), adjusted for all other terms.
 
