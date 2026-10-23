@@ -57,6 +57,7 @@ STAGE_MODE=${STAGE_MODE:-copy}
 # ------------------------- general -----------------------------------
 MINLEN=${MINLEN:-18}          # minimum read length (cutadapt -m, assembly filter)
 MAXLEN=${MAXLEN:-100}          # maximum read length (cutadapt -M, length distributions)
+MIN_LIBRARY_READS="${MIN_LIBRARY_READS-10000}"   # libraries with fewer trimmed reads are not analysed beyond split (failed library; QC FAIL)
 
 # ------------------------- qc module (cutadapt) ----------------------
 ADAPTER_3P=AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC   # Illumina TruSeq/NEBNext read-1 adapter, found in the raw reads (same for sRNA-Ext and sRNA-Int, no UMIs)

@@ -5,7 +5,8 @@
 #   -m LIST       modules expected per row          [qc,contam,prep,split,human,nonhuman,assembly,novel,fragments,bins,crispr]
 #   -J NAME       SLURM job name of the run (to detect running/pending tasks; as -J of submit)  [sRNA]
 #   -v            list every row (default: only rows that are not complete)
-#   --resubmit    resubmit the incomplete, not running rows (submit_srna_pipeline.sh --rows ... --no-compare)
+#   --resubmit    resubmit the failed rows (submit_srna_pipeline.sh --rows ... --no-compare); queued / running rows are
+#                 left alone; a still pending final job (<job>_compare) is made to wait for the resubmitted rows too
 #   --dry-run     with --resubmit: only print the submit command
 # A row is: done (all .done stamps); running (a module's .running marker: interactive or batch;
 # for markers from another host the SLURM job in the marker is checked when squeue exists);
@@ -150,12 +151,38 @@ if [[ ${#FAILED[@]} -gt 0 ]]; then
   echo "# rows to rerun: $LIST"
   CMD=("$DIR/submit_srna_pipeline.sh" -s "$SAMPLES" -o "$OUTDIR" -m "$MODULES" -J "$JOB" --rows "$LIST" --no-compare
        ${EXTRA[@]+"${EXTRA[@]}"})
+  # final compare/report/cohort job of the original submission still waiting for the array?
+  CJOB=""
+  if [[ $HAVE_SQ -eq 1 ]]; then
+    CJOB=$(squeue -h -u "${USER:-$(id -un)}" -n "${JOB}_compare" -t PENDING -o "%i" 2>/dev/null | head -n 1 || true)
+  fi
   if [[ $RESUB -eq 1 ]]; then
     [[ $DRY -eq 1 ]] && CMD+=(--dry-run)
     echo "# ${CMD[*]}"
-    "${CMD[@]}"
+    # output shown live (tee): the submit script may ask "Submit anyway?" after its input check
+    TMPO=$(mktemp)
+    set +e; "${CMD[@]}" 2>&1 | tee "$TMPO"; rc=${PIPESTATUS[0]}; set -e
+    OUT=$(cat "$TMPO"); rm -f "$TMPO"
+    [[ $rc -eq 0 ]] || exit "$rc"
+    NEWJ=$(sed -n 's/^Submitted array job \([0-9]*\).*/\1/p' <<< "$OUT" | head -n 1)
+    if [[ -n "$NEWJ" && -n "$CJOB" ]]; then
+      # let the pending final job also wait for the resubmitted rows
+      DEP=$(squeue -h -j "$CJOB" -o "%E" 2>/dev/null | sed 's/([^)]*)//g; s/_\*//g; s/^(null)$//')
+      NEWDEP="afterany:${NEWJ}"; [[ -n "$DEP" && "$DEP" != "(null)" ]] && NEWDEP="${DEP},afterany:${NEWJ}"
+      if scontrol update JobId="$CJOB" Dependency="$NEWDEP" 2>/dev/null; then
+        echo "# final job $CJOB (compare + report + cohort) now also waits for job $NEWJ"
+      else
+        echo "# could not extend the dependency of $CJOB — after job $NEWJ, run: $DIR/submit_srna_pipeline.sh -s $SAMPLES -o $OUTDIR --compare-only"
+      fi
+    elif [[ -n "$NEWJ" ]]; then
+      echo "# no pending final job — after job $NEWJ, run: $DIR/submit_srna_pipeline.sh -s $SAMPLES -o $OUTDIR --compare-only"
+    fi
   else
     echo "# resubmit with:  $0 -s $SAMPLES -o $OUTDIR -J $JOB --resubmit"
+    if [[ -n "$CJOB" ]]; then
+      echo "# the final job $CJOB (compare + report + cohort) is still pending; --resubmit makes it wait for the resubmitted rows"
+    else
+      echo "# afterwards:     $DIR/submit_srna_pipeline.sh -s $SAMPLES -o $OUTDIR --compare-only   (compare + report + cohort)"
+    fi
   fi
-  echo "# afterwards:     $DIR/submit_srna_pipeline.sh -s $SAMPLES -o $OUTDIR --compare-only   (compare + report + cohort)"
 fi

@@ -627,8 +627,15 @@ module_human() {
   human_step() {
     local name=$1 idx=$2 in=$3 unname=$4 outsub=$5
     log "$name searching ..."
-    bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 1 -a --best --sam --un "$TEMPDIR/$unname.fastq" \
-      "$idx" "$in" > "$TEMPDIR/$PREFIX.human.$name.sam" 2> "$L/$PREFIX.bowtie.$name.log"
+    if [[ "$(fastq_reads "$in")" -eq 0 ]]; then
+      # no reads left (e.g. a library without human reads): bowtie aborts on an empty FASTQ
+      : > "$TEMPDIR/$PREFIX.human.$name.sam"; : > "$TEMPDIR/$unname.fastq"
+      echo "no input reads — step skipped" > "$L/$PREFIX.bowtie.$name.log"
+    else
+      bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 1 -a --best --sam --un "$TEMPDIR/$unname.fastq" \
+        "$idx" "$in" > "$TEMPDIR/$PREFIX.human.$name.sam" 2> "$L/$PREFIX.bowtie.$name.log"
+      [[ -e "$TEMPDIR/$unname.fastq" ]] || : > "$TEMPDIR/$unname.fastq"
+    fi
     gzip -f "$TEMPDIR/$unname.fastq"
     mv "$TEMPDIR/$unname.fastq.gz" "$HUMANDIR/$outsub/$unname.fastq.gz"
     log "$name searching done"
@@ -1519,6 +1526,19 @@ run_module() {
   if [[ -e "$stamp" && $FORCE -eq 0 ]]; then
     log "already done ($stamp) — skipping (use -f to re-run)"
     return 0
+  fi
+  # libraries with (almost) no reads (failed library): later modules are skipped and marked done; the QC rules
+  # flag the library (FAIL: too few reads), so it is left out of the cohort statistics
+  if [[ ",qc,contam,prep,split," != *",$m,"* && -s "$STATS_DIR/$PREFIX.$TYPE.read_stats.tsv" ]]; then
+    local ntrim
+    ntrim=$(awk -F'\t' '$2=="trimmed"{print $3+0}' "$STATS_DIR/$PREFIX.$TYPE.read_stats.tsv")
+    if [[ -n "$ntrim" && "$ntrim" -lt "${MIN_LIBRARY_READS:-10000}" ]]; then
+      warn "only $ntrim trimmed reads (< MIN_LIBRARY_READS=${MIN_LIBRARY_READS:-10000}) — module $m skipped"
+      mkdir -p "$LOGDIR"
+      printf '%s\t0\tskipped: %s trimmed reads\n' "$(date '+%F %T')" "$ntrim" > "$stamp"
+      rm -f "$LOGDIR/.$m.failed"
+      return 0
+    fi
   fi
   local envvar="ENV_${m^^}"
   local env="${!envvar:-${ENV_DEFAULT:-}}"
