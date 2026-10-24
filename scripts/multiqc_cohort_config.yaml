@@ -1,0 +1,17 @@
+# MultiQC configuration for the sRNA-IMP cohort report (srna_pipeline.sh --cohort)
+# One sample name per library (<sample>_<type>) for FastQC, cutadapt and the sRNA-IMP tables, so that
+# the general statistics table has one row per library; heavy FastQC sections are left out, otherwise
+# reports with several hundred libraries do not render in the browser ("Loading report..").
+title: "sRNA-IMP cohort"
+sample_names_replace_regex: true
+sample_names_replace:
+  '^Stats \| (sRNA-[A-Za-z0-9]+) \| fastqc \| ([^ |]+)$': '\2_\1'
+  '^([^ |]+) \| Stats \| (sRNA-[A-Za-z0-9]+) \| .*$': '\1_\2'
+remove_sections:
+  - fastqc_sequence_duplication_levels
+  - fastqc_per_base_n_content
+  - fastqc_per_base_sequence_content
+  - fastqc_overrepresented_sequences
+  - fastqc_top_overrepresented_sequences
+  - fastqc_status_checks
+max_table_rows: 2000

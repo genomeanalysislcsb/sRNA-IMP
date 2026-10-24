@@ -17,6 +17,7 @@ types of a sample.
 │   │   │   ├── human/            mirna/ trna/ rrna/ otherrna/ unknown/
 │   │   │   ├── nonhuman/         rrna/ rrna_tax/ collapsed/ trna/ mirna_like/ rfam/ unknown/
 │   │   │   ├── crispr/           crRNAs per CRISPR array / spacer
+│   │   │   ├── chimera/          chimeric reads (optional module)
 │   │   │   ├── assembly/         contig mapping (BAM), feature / category / functional counts
 │   │   │   ├── novel/            BAM, clusters, candidates, Rfam, RNAfold
 │   │   │   ├── fragments/        tRNA / rRNA fragment classes and profiles, RNA integrity
@@ -57,6 +58,7 @@ types of a sample.
 | fragments | `Analysis/<type>/fragments/<s>.integrity{,.profile,.features}.tsv` | RNA integrity indicators |
 | bins | `Analysis/<type>/bins/<s>.{contig,feature,category,bin,taxon}_counts.tsv` | counts by contig, feature, bin, taxon; `bin_counts.tsv` also has GTDB classification, completeness, contamination and quality (HQ ≥ 90 % / < 5 %, MQ ≥ 50 % / < 10 %, else LQ) |
 | crispr | `Analysis/<type>/crispr/<s>.crispr_{arrays,units,ends,lengths}.tsv` | reads per CRISPR array (strand, Cas type, bin, taxon), per spacer / repeat in transcription order, read-end offsets, read lengths |
+| chimera | `Analysis/<type>/chimera/<s>.chimera_{summary,pairs,typepairs,energy,bins}.tsv`, `.chimera_reads.tsv.gz` | optional module: chimeric reads, feature pairs with enrichment (p, q) and arm complementarity (duplex ΔG vs re-paired arms), bin / taxon of both arms and same-organism share vs expected |
 | compare | `Analysis/comparison/<A>_vs_<B>/<s>.<A>_vs_<B>.{features,contigs,bins,bins_cds,bins_no_rrna,summary}.tsv` | one folder per pair (`sRNA-Ext_vs_sRNA-Int`, `sRNA-Ext_vs_metaT`, `sRNA-Int_vs_metaT`, `…_vs_metaG`, `metaT_vs_metaG`): counts, CPM, log2 ratio (first / second); features also CPM and log2 ratio within feature type; summary with Spearman per level and per feature type |
 | compare | `Analysis/comparison/<s>.all_sources.{features,contigs,bins}.tsv`, `<s>.compare.summary.tsv` | counts + CPM of all sources side by side; all metrics of all pairs |
 | report | `Report/<s>.report.{pdf,html}`, `Report/multiqc/*_mqc.tsv` | per-sample PDF report; MultiQC custom-content tables (see Running → Per-sample report) |

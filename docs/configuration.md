@@ -150,3 +150,26 @@ ASSEMBLY_RECOUNT_ONLY=1 RRNA_EXCLUDE_RFAM=1 ./srna_pipeline.sh -s samples.tsv -o
 | `COHORT_COVARIATES` | `""` | covariate columns (default: all other columns) |
 | `COHORT_PERMUTATIONS` | `999` | PERMANOVA permutations |
 | `COMPARE_BIN_BASIS` | `contig,cds,no_rrna` | how reads are summed per bin; the first is the main bin level (`bins.tsv`), the others add `bins_<basis>.tsv` and summary rows `bin_<basis>` (see workflow §11) |
+
+## chimera (optional module, `-m chimera`)
+
+| variable | default | meaning |
+|---|---|---|
+| `CHIMERA_MIN_ARM` | 18 | minimum arm = exact seed length; reads ≥ 2 × this are tested |
+| `CHIMERA_MAX_HITS` | 5 | seeds with more exact hits on the assembly are not used |
+| `CHIMERA_ARM_MISMATCHES` | 1 | mismatches allowed while extending an arm |
+| `CHIMERA_MAX_GAP` | 2 | read nt covered by neither arm |
+| `CHIMERA_COLINEAR_MAX` | 1000 | same contig and strand, 3′ arm ≤ N nt downstream → colinear (not an interaction) |
+| `CHIMERA_UTR5` / `CHIMERA_UTR3` | 150 / 100 | UTR windows around CDS |
+| `CHIMERA_FLANK` | 20 | contig nt added on both sides of an arm for the duplex energy |
+| `CHIMERA_NULL` | 20 | random re-pairings per pair |
+| `CHIMERA_MAX_PAIRS` | 5000 | feature pairs tested for complementarity |
+| `RNADUPLEX` | – | RNAduplex executable; default: PATH, then `$ENV_NOVEL/bin/RNAduplex` |
+| `CHIMERA_MT` | 1 | also analyse the IMP3 metaT BAM (once per sample, `Analysis/metaT/chimera/`) |
+| `CHIMERA_MT_BAM` | – | metaT BAM (`<ID>`/`<id>` placeholders); default from the `metaT_features` IMP directory |
+| `CHIMERA_MT_STRAND` | auto | `R1-sense`, `R1-antisense` (dUTP), `unstranded` |
+| `CHIMERA_MT_MIN_ARM` / `_MIN_MAPQ` / `_EDGE` | 25 / 20 / 500 | split-read part length, MAPQ, contig-end distance of discordant mates |
+| `ENV_CHIMERA` | `ENV_DEFAULT` | environment (bowtie, samtools) |
+
+Run after `assembly` (and `novel`, for novel sRNA loci): `./srna_pipeline.sh -s samples.tsv -o out -S BXXX1 -m chimera`.
+

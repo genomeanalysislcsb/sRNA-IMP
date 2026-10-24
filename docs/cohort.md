@@ -363,3 +363,46 @@ a minimal model and adding covariates step by step shows whether a group differe
 Families are handled with `COHORT_BLOCK=family` (clustered SE and within-family variants, see
 [Block designs](#block-designs-site-family)); random-effect models are not fitted. Several visits per person: use one
 sample per person, or the person as block.
+
+## Highlights (cross-sample)
+
+Three to four pages right after the key findings summarise the best single findings across all samples
+(`srna_highlights.py`; tables in `Cohort/stats/cohort.highlights.*.tsv`):
+
+* **CRISPR systems**: expressed arrays (≥ 20 reads) of all libraries joined by their repeat sequence (either
+  orientation), i.e. one row per CRISPR system: Cas type, main taxon, samples (per group), libraries, median / max
+  reads per kb of array, spacers, samples with a tracrRNA candidate, repeat.
+* **CRISPR systems of one group**: systems expressed in ≥ `--highlights-min-samples` (default 3) samples of a
+  group and more often there than in the other groups of the same block (one-sided Fisher test on presence, p < 0.05,
+  BH q over all systems × groups; "only" = in no sample of the other groups). Usually reflects a strain that is more common in that
+  group; compare with metaG (`cohort.highlights.crispr_group_specific.tsv`).
+* **Features of one group (all classes)**: the same presence test for CRISPR systems, novel sRNA clusters, Rfam
+  families of novel loci (per sample) and for genera, species, Rfam families, human miRNAs and KEGG KOs per fraction
+  (present = ≥ 10 reads); BH-FDR within each class (`cohort.highlights.group_specific_features.tsv`). With a block
+  column (`COHORT_BLOCK`, e.g. site) a group is compared only with the other groups of its own blocks (PD from Kassel
+  with HC from Kassel, RA from Berlin with HC from Berlin), so site differences do not appear as group markers.
+* **Recurrent novel sRNAs**: the novel loci without Rfam hit of all libraries (top `--highlights-top` per library,
+  default 300) clustered across samples by shared exact 21-mers (content-sampled; k-mers repeated within a library
+  do not link): samples, libraries, locus class, length, reads per sample, RNAfold MFE per nt, taxon and the
+  representative sequence (`cohort.highlights.novel_srna_clusters.fa` for Rfam / BLAST).
+* **Known ncRNA families among the novel loci**: best Rfam hit of the loci, without rRNA / tRNA (riboswitches, tmRNA,
+  RNase P, SRP, … missing from the genome annotation).
+* **Chimeras** (if module chimera was run): per data type the complementarity and same-organism tests, and the
+  candidate pairs with q < 0.05 pooled over libraries by partner names.
+
+## Heterogeneity (subtypes)
+
+Complex diseases may consist of subtypes, so that only some patients differ from the controls. Two analyses
+(`srna_heterogeneity.py`, two pages before the adjusted models; `--no-heterogeneity` to skip) compare every disease
+group with the reference group of the same block (site):
+
+* **Spread (dispersion)**: distance of every library to its group centroid in the Bray-Curtis PCoA space
+  (rRNA genera, KEGG pathways, Rfam families), permutation test of the mean distance (PERMDISP-like).
+* **Outlier range**: per feature (genera, species, Rfam families, RNA classes, miRNAs, KEGG pathways and KOs) the
+  share of patients above the 95th / below the 5th percentile of the controls vs the share of controls there
+  (one-sided Fisher test, BH-FDR per fraction / set / comparison / direction), with the patient IDs — candidate
+  subgroups to compare with the clinical data; and per library the outlier load (share of features outside the
+  control range; controls leave-one-out), patients vs controls (Mann-Whitney).
+
+Tables: `Cohort/stats/cohort.heterogeneity.{dispersion,dispersion_distances,outlier_features,outlier_load,outlier_load_per_library}.tsv`.
+

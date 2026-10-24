@@ -43,6 +43,7 @@ ENV_CONTAM=${ENV_CONTAM:-$ENV_DEFAULT}
 ENV_FRAGMENTS=${ENV_FRAGMENTS:-$ENV_NOVEL}
 ENV_BINS=${ENV_BINS:-$ENV_NOVEL}
 ENV_CRISPR=${ENV_CRISPR:-$ENV_DEFAULT}
+ENV_CHIMERA=${ENV_CHIMERA:-$ENV_DEFAULT}   # bowtie + samtools; RNAduplex is taken from ENV_NOVEL if not in this env
 ENV_COMPARE=${ENV_COMPARE:-$ENV_DEFAULT}
 
 # ------------------------- temp space --------------------------------
@@ -180,6 +181,27 @@ FRAG_MIN_READS=10             # features with >= N reads get per-position profil
 
 # ------------------------- bins module -------------------------------
 BINS_MIN_OVERLAP=0.5          # fraction of the read overlapping a feature
+
+# ------------------------- chimera module (optional: -m chimera) -------
+# chimeric reads = candidate RNA-RNA ligation products (exploratory without crosslinking / proximity ligation)
+CHIMERA_MIN_ARM=${CHIMERA_MIN_ARM:-18}            # minimum arm (= exact seed) length; reads >= 2x this are tested
+CHIMERA_MAX_HITS=${CHIMERA_MAX_HITS:-5}           # seeds with more exact hits on the assembly are not used
+CHIMERA_ARM_MISMATCHES=${CHIMERA_ARM_MISMATCHES:-1}  # mismatches allowed while extending an arm
+CHIMERA_MAX_GAP=${CHIMERA_MAX_GAP:-2}             # read nt covered by neither arm
+CHIMERA_COLINEAR_MAX=${CHIMERA_COLINEAR_MAX:-1000}  # same contig/strand, 3' arm <= N nt downstream: colinear (not used)
+CHIMERA_UTR5=${CHIMERA_UTR5:-150}                 # 5' UTR window upstream of a CDS (sRNA targets)
+CHIMERA_UTR3=${CHIMERA_UTR3:-100}                 # 3' UTR window downstream of a CDS
+CHIMERA_FLANK=${CHIMERA_FLANK:-20}                # contig nt on both sides of an arm for the duplex energy
+CHIMERA_NULL=${CHIMERA_NULL:-20}                  # random re-pairings per pair (complementarity null)
+CHIMERA_MAX_PAIRS=${CHIMERA_MAX_PAIRS:-5000}      # feature pairs tested for complementarity (most reads first)
+RNADUPLEX=${RNADUPLEX:-}                          # RNAduplex executable; "" = PATH, then $ENV_NOVEL/bin/RNAduplex
+# metaT chimeras (same module, once per sample): split reads and discordant pairs in the IMP3 metaT BAM
+CHIMERA_MT=${CHIMERA_MT:-1}                       # 1 = also analyse the metaT BAM
+CHIMERA_MT_BAM=${CHIMERA_MT_BAM:-}                # "" = <IMP dir of metaT_features>/Assembly/mt.reads.sorted.bam; <ID>/<id> allowed
+CHIMERA_MT_STRAND=${CHIMERA_MT_STRAND:-auto}      # auto | R1-sense | R1-antisense (dUTP) | unstranded
+CHIMERA_MT_MIN_ARM=${CHIMERA_MT_MIN_ARM:-25}      # minimum aligned length of each part of a split read
+CHIMERA_MT_MIN_MAPQ=${CHIMERA_MT_MIN_MAPQ:-20}    # MAPQ of primary alignments and discordant mates
+CHIMERA_MT_EDGE=${CHIMERA_MT_EDGE:-500}           # discordant mate pointing to a contig end closer than this: assembly break
 
 # ------------------------- compare (--compare) -----------------------
 COMPARE_PSEUDOCOUNT=1         # added to CPM before log2 ratios

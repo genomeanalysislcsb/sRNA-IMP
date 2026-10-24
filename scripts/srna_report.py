@@ -2016,8 +2016,9 @@ def write_mqc(mqc_dir, sample, td):
         for d in td:
             v = {r["metric"]: r["value"] for r in d.integrity}
             q = rna_qc_for(sample, d.t)
-            out.write("%s_%s\t" % (sample, d.t) + "\t".join([q.get(k, "").replace("NA", "") for k in qk] +
-                                                          [v.get(k, "") for k in keys]) + "\n")
+            # NA instead of empty cells: MultiQC drops trailing empty fields ("inconsistent number of columns")
+            out.write("%s_%s\t" % (sample, d.t) + "\t".join([q.get(k, "") or "NA" for k in qk] +
+                                                          [v.get(k, "") or "NA" for k in keys]) + "\n")
     return mqc_dir
 
 

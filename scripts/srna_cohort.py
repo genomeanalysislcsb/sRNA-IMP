@@ -46,6 +46,8 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import srna_report as R            # noqa: E402  (page layout, tables, per-sample loader)
 import srna_qc as Q                # noqa: E402  (library metrics, QC rules)
+import srna_highlights as HL       # noqa: E402  (cross-sample highlights: CRISPR, novel sRNAs, chimeras)
+import srna_heterogeneity as HT    # noqa: E402  (dispersion, patients outside the control range)
 
 MISSING = {"", "na", "n/a", "nan", "none", "null", "-", "?"}
 # functional categories of the sRNA reads on CDS (assembly module, functions.tsv): db -> (term filter, label)
@@ -1744,6 +1746,50 @@ EXPLAIN = {
         "samples with ≥ 10 reads. Not adjusted for covariates or compositionality — candidates for adjusted models "
         "(see the adjusted models page, --model), not results.",
 }
+EXPLAIN.update({
+    "highlights_crispr":
+        "CRISPR systems expressed across the cohort. Arrays of different samples (each with its own assembly) are "
+        "joined when they share the repeat sequence, so one row is one CRISPR system, usually one species or strain "
+        "group. Expressed arrays in many samples point to CRISPR–Cas systems that are active in the gut; a tracrRNA "
+        "candidate (type II / V) is an sRNA cluster in the locus pairing with the repeat (per-sample report).",
+    "highlights_crispr_group":
+        "CRISPR systems that are expressed in one group only, or much more often than in the other groups. Expression "
+        "needs the host taxon: a group-specific system usually reflects a strain or species that is more common in that "
+        "group (compare its abundance in metaG), rarely a change of CRISPR activity itself. With ~60 samples per group, "
+        "'only' in 3–4 samples is not significant on its own; trust rows with q < 0.1.",
+    "highlights_group":
+        "Presence / absence per group for every feature class at once: CRISPR systems, novel sRNA clusters, Rfam "
+        "families of novel loci (per sample), and genera, species, Rfam families, human miRNAs and KOs per fraction "
+        "(present = ≥ 10 reads). A feature found in many samples of one group and rarely in the others is a "
+        "candidate marker; q < 0.1 survives the multiple testing within its class. Presence depends on sequencing "
+        "depth and on taxon abundance — check depth by group (QC pages) and abundance in metaG; for quantitative "
+        "differences use the adjusted models.",
+    "heterogeneity":
+        "Complex diseases may consist of subtypes: then only some patients differ from the controls, each in its own "
+        "way, and group means hardly move (adjusted models find little). A larger spread of the patients around their "
+        "centroid, or a higher outlier load (share of features outside the normal range of the controls), points to "
+        "such heterogeneity ('Anna Karenina' pattern of dysbiosis). Depth and RNA quality also raise the spread — "
+        "compare with the QC pages.",
+    "heterogeneity_features":
+        "Features that leave the control range in a subset of the patients (e.g. 20 % of PD above the 95th percentile "
+        "of the controls, 5 % expected). Such features can define candidate subgroups: compare the listed patients "
+        "with the clinical data (severity, duration, treatment, constipation). Full lists incl. patient IDs: "
+        "stats/cohort.heterogeneity.outlier_features.tsv.",
+    "highlights_novel":
+        "Novel sRNA loci (no Rfam hit, module novel) of all libraries, clustered across samples by shared sequence. "
+        "A cluster found in many samples is a conserved, reproducibly expressed sRNA of a common gut taxon and the "
+        "best candidate for a new regulatory RNA; check the representative sequence (FASTA in stats/) with Rfam, "
+        "BLAST or the structure. Only the top loci per library enter (--highlights-top); locus = intergenic or "
+        "antisense to a CDS.",
+    "highlights_rfam":
+        "Known ncRNA families (Rfam) among the novel loci, without rRNA and tRNA: e.g. riboswitches, sRNAs, "
+        "leaders and ribozymes that the genome annotation did not include.",
+    "highlights_chimera":
+        "Exploratory (module chimera): chimeric reads may join two interacting RNAs, but without crosslinking most are "
+        "library artefacts. Evidence for real duplexes is a group of pairs whose arms are more complementary than "
+        "re-paired arms, and more inter-contig chimeras within one organism (bin) than expected. Pairs are "
+        "candidates, not a measured interactome.",
+})
 for k, v in EXPLAIN.items():
     R.EXPLAIN["cohort_" + k] = v
 
@@ -2809,6 +2855,261 @@ def page_findings(pdf, C):
     plt.close(fig)
 
 
+def _short(x, n):
+    return R.short(str(x), n)
+
+
+def page_highlights_crispr(pdf, C, rows, top=30):
+    if not rows:
+        return False
+    fig = cpage(pdf, "highlights — CRISPR systems", "expressed CRISPR arrays (≥ 20 reads) of all libraries grouped by "
+                "repeat (same repeat in either orientation = one system); sorted by number of samples; "
+                "RPK = reads per kb of array", "highlights_crispr")
+    n2 = sum(1 for r in rows if r["samples"] >= 2)
+    fig.text(0.03, 0.87, "%d systems, %d in ≥ 2 samples, %d with a tracrRNA candidate" % (
+        len(rows), n2, sum(1 for r in rows if r["tracr_samples"])), fontsize=8, fontweight="bold")
+    ax = fig.add_axes([0.02, 0.04, 0.95, 0.80])
+    R.table(ax, [[str(i + 1), _short(r["taxon"], 34), _short(r["cas_type"].replace("no cas genes", "none").replace("no Cas genes", "none"), 12), r["samples"], r["groups"],
+                  r["libraries"], fmt(r["median_reads_per_kb"], 3), fmt(r["max_reads_per_kb"], 3),
+                  fmt(r["median_spacers"], 3), r["tracr_samples"] or "–", _short(r["repeat"], 38)]
+                 for i, r in enumerate(rows[:top])],
+            ["#", "taxon (main)", "Cas", "samples", "samples per group", "libraries", "median RPK", "max RPK",
+             "spacers", "tracrRNA", "repeat"], fontsize=5.8, left=(1, 2, 4, 5, 10), rowscale=1.1,
+            col_widths=[0.025, 0.19, 0.05, 0.05, 0.12, 0.08, 0.065, 0.065, 0.05, 0.05, 0.255])
+    pdf.savefig(fig)
+    plt.close(fig)
+    return True
+
+
+def page_highlights_crispr_group(pdf, C, rows, top=30):
+    if rows is None:
+        return False
+    fig = cpage(pdf, "highlights — CRISPR systems of one group", "systems expressed (≥ 20 reads) in ≥ %d samples of "
+                "a group and more often there than in the other groups of the same site (one-sided Fisher test, "
+                "p < 0.05; q = BH-FDR); 'only' = in none of the compared samples; sorted by q, p"
+                % C.a.highlights_min_samples, "highlights_crispr_group")
+    if not rows:
+        R.note(fig.add_axes([0.03, 0.4, 0.9, 0.3]), "no CRISPR system more often expressed in one group (p < 0.05)")
+        pdf.savefig(fig)
+        plt.close(fig)
+        return True
+    n_ex = sum(1 for r in rows if r["exclusive"] == "yes")
+    nq = sum(1 for r in rows if r["q"] < 0.1)
+    fig.text(0.03, 0.87, "%d systems with p < 0.05 (%d only in one group); %s" % (
+        len(rows), n_ex, "%d with q < 0.1" % nq if nq else "none significant after FDR correction (q ≥ 0.1): "
+        "candidates only"), fontsize=8, fontweight="bold", color="#333" if nq else "#B00000")
+    ax = fig.add_axes([0.02, 0.04, 0.95, 0.80])
+    R.table(ax, [[r["group"], "only" if r["exclusive"] == "yes" else "enriched",
+                  "%d / %d (%.0f %%)" % (r["samples_in_group"], r["group_size"], 100 * r["share_in_group"]),
+                  "%s: %d / %d" % (_short(r["compared_with"], 14), r["samples_other"], r["other_size"]),
+                  fmt(r["p"], 2), fmt(r["q"], 2), _short(r["taxon"], 34),
+                  _short(r["cas_type"].replace("no cas genes", "none").replace("no Cas genes", "none"), 12),
+                  fmt(r["median_reads_per_kb"], 3), r["tracr_samples"] or "–", _short(r["repeat"], 36)]
+                 for r in rows[:top]],
+            ["group", "", "samples in group", "compared with", "p", "q", "taxon (main)", "Cas", "median RPK",
+             "tracrRNA", "repeat"], fontsize=5.8, left=(0, 1, 6, 7, 10), rowscale=1.1,
+            col_widths=[0.04, 0.045, 0.09, 0.12, 0.045, 0.045, 0.18, 0.06, 0.055, 0.045, 0.255])
+    pdf.savefig(fig)
+    plt.close(fig)
+    return True
+
+
+PRESENCE_SETS = (("genus", "genus", 10), ("species", "species", 10), ("rfam_family", "Rfam family", 10),
+                 ("mirna", "miRNA", 10), ("fn_kegg_ko", "KEGG KO", 10))
+
+
+def group_specific_features(C, H, gb, uni, min_samples):
+    """presence / absence per group for all feature classes: highlights (CRISPR systems, novel sRNA clusters, Rfam
+    families of novel loci; per sample) and the count tables (genera, species, Rfam families, miRNAs, KOs; per
+    fraction, present = >= 10 reads); with a block column (site) each group is compared within its blocks"""
+    items = []
+    for r in H.get("crispr") or []:
+        items.append(dict(cls="CRISPR system", feature="%s · %s" % (r["taxon"] or "?", r["cas_type"]),
+                          info=r["repeat"], samples=r["_samples"], universe=uni))
+    for r in H.get("novel") or []:
+        if r["samples"] >= min_samples:
+            items.append(dict(cls="novel sRNA cluster", feature=r["cluster"], info="%s · %s nt · %s" % (
+                r["taxon"] or "?", fmt(r["median_length"], 3), r["locus_class"]), samples=r["_samples"],
+                universe=uni))
+    for r in H.get("rfam") or []:
+        items.append(dict(cls="Rfam family (novel loci)", feature=r["family"], info=r["description"],
+                          samples=r["_samples"], universe=uni))
+    for t in C.types:
+        ks = C.keys(t)
+        tu = sorted({s for s, _ in ks})
+        for mx, lab, minr in PRESENCE_SETS:
+            pres = collections.defaultdict(set)
+            for k in ks:
+                for f, v in (C.vec.get(k, {}).get(mx) or {}).items():
+                    if f and v >= minr:
+                        pres[f].add(k[0])
+            for f, ss in pres.items():
+                if len(ss) >= min_samples:
+                    items.append(dict(cls="%s · %s" % (lab, t.replace("sRNA-", "")), feature=f,
+                                      info=tname(f, 60).replace(f, "").strip() if mx.startswith("fn_") else "",
+                                      samples=ss, universe=tu))
+    return HL.group_presence(items, gb, min_samples=min_samples)
+
+
+def page_highlights_group(pdf, C, rows, top=32):
+    if rows is None:
+        return False
+    fig = cpage(pdf, "highlights — features of one group (all classes)", "presence in ≥ %d samples of a group and more "
+                "often than in the other groups of the same site (Fisher test on presence, p < 0.05; q = BH-FDR per "
+                "class); present = expressed / ≥ 10 reads"
+                % C.a.highlights_min_samples, "highlights_group")
+    if not rows:
+        R.note(fig.add_axes([0.03, 0.4, 0.9, 0.3]), "no feature more often present in one group (p < 0.05)")
+        pdf.savefig(fig)
+        plt.close(fig)
+        return True
+    cls = collections.OrderedDict()
+    for r in rows:
+        c = cls.setdefault(r["cls"], [0, 0, r["tests_in_class"]])
+        c[0] += 1
+        c[1] += r["q"] < 0.1
+    fig.text(0.03, 0.875, "per class — p < 0.05 / q < 0.1 / tested:  " + ";  ".join(
+        "%s %d / %d / %d" % (k, v[0], v[1], v[2]) for k, v in sorted(cls.items(), key=lambda x: -x[1][1])),
+        fontsize=6.3, wrap=True)
+    ax = fig.add_axes([0.02, 0.04, 0.95, 0.78])
+    R.table(ax, [[_short(r["cls"], 24), _short(r["feature"], 38), _short(r["info"], 40), r["group"],
+                  "only" if r["exclusive"] == "yes" else "",
+                  "%d / %d (%.0f %%)" % (r["samples_in_group"], r["group_size"], 100 * r["share_in_group"]),
+                  _short(r["compared_with"], 16),
+                  "%d / %d (%.0f %%)" % (r["samples_other"], r["other_size"], 100 * r["share_other"]), fmt(r["p"], 2),
+                  fmt(r["q"], 2)] for r in rows[:top]],
+            ["class", "feature", "", "group", "", "samples in group", "compared with", "samples there", "p", "q"],
+            fontsize=5.8, left=(0, 1, 2, 3, 4, 6), rowscale=1.1,
+            col_widths=[0.12, 0.2, 0.2, 0.04, 0.035, 0.09, 0.09, 0.09, 0.05, 0.05])
+    pdf.savefig(fig)
+    plt.close(fig)
+    return True
+
+
+def page_heterogeneity(pdf, C, HZ, top=32):
+    disp, load, feat = HZ.get("disp"), HZ.get("load"), HZ.get("feat")
+    if not disp and not load:
+        return False
+    fig = cpage(pdf, "heterogeneity — spread of the patients and outlier load", "disease group vs controls of the "
+                "same block; spread: distance to the group centroid (Bray-Curtis PCoA, permutations); outlier load: "
+                "share of features outside the 5–95 % control range", "heterogeneity")
+    if disp:
+        ax = fig.add_axes([0.03, 0.60, 0.94, 0.24])
+        R.table(ax, [[r["type"].replace("sRNA-", ""), NMDS_LABELS.get(r["set"], r["set"]), r["comparison"],
+                      "%d / %d" % (r["n_cases"], r["n_controls"]), fmt(r["median_dist_cases"], 3),
+                      fmt(r["median_dist_controls"], 3), fmt(r["ratio"], 3), fmt(r["p"], 2), fmt(r["q"], 2)]
+                     for r in disp],
+                ["fraction", "profile", "comparison", "n patients / controls", "spread patients (median)",
+                 "spread controls", "ratio (means)", "p", "q"], fontsize=5.6, left=(0, 1, 2),
+                col_widths=[0.07, 0.2, 0.17, 0.11, 0.12, 0.1, 0.08, 0.07, 0.07], title="spread (dispersion)",
+                rowscale=1.0)
+        bold_rows(ax, [isnum(r["q"]) and r["q"] < SIG_Q for r in disp])
+    if load:
+        ax = fig.add_axes([0.03, 0.03, 0.94, 0.50])
+        rows = sorted(load, key=lambda r: (r["type"], r["comparison"], r["set"]))
+        R.table(ax, [[r["type"].replace("sRNA-", ""), r["set"], r["comparison"], r["features"],
+                      "%.1f %%" % (100 * r["median_load_cases"]), "%.1f %%" % (100 * r["median_load_controls"]),
+                      "%d / %d" % (r["cases_above_control_p90"], r["n_cases"]), fmt(r["p"], 2), fmt(r["q"], 2)]
+                     for r in rows[:40]],
+                ["fraction", "features", "comparison", "tested", "outlier load patients (median)", "controls",
+                 "patients > 90th pct of controls", "p", "q"], fontsize=5.2, left=(0, 1, 2), rowscale=0.92,
+                col_widths=[0.07, 0.12, 0.17, 0.07, 0.16, 0.09, 0.16, 0.07, 0.07], title="outlier load")
+        bold_rows(ax, [isnum(r["q"]) and r["q"] < SIG_Q for r in rows[:40]])
+    pdf.savefig(fig)
+    plt.close(fig)
+    if feat:
+        fig = cpage(pdf, "heterogeneity — features changed in a subset of patients", "patients above the 95th (below "
+                    "the 5th) percentile of the controls of the same block vs controls there (Fisher test; q = BH-FDR "
+                    "per fraction / set / comparison / direction)", "heterogeneity_features")
+        nq = sum(1 for r in feat if r["q"] < 0.1)
+        fig.text(0.03, 0.875, "%d feature tests with p < 0.05, %d with q < 0.1" % (len(feat), nq), fontsize=8,
+                 fontweight="bold", color="#333" if nq else "#B00000")
+        ax = fig.add_axes([0.02, 0.04, 0.95, 0.80])
+        R.table(ax, [[r["type"].replace("sRNA-", ""), _short(r["set"], 14), r["comparison"],
+                      _short(("%s %s" % (r["feature"], r["name"])).strip(), 40), "↑" if r["direction"] == "up" else "↓",
+                      "%d / %d (%.0f %%)" % (r["cases_outside"], r["n_cases"], 100 * r["share_cases"]),
+                      "%d / %d" % (r["controls_outside"], r["n_controls"]), fmt(r["p"], 2), fmt(r["q"], 2),
+                      _short(r["patients"], 46)] for r in feat[:top]],
+                ["fraction", "set", "comparison", "feature", "", "patients outside", "controls", "p", "q",
+                 "patients"], fontsize=5.6, left=(0, 1, 2, 3, 9), rowscale=1.1,
+                col_widths=[0.05, 0.08, 0.13, 0.22, 0.02, 0.1, 0.06, 0.05, 0.05, 0.24])
+        bold_rows(ax, [r["q"] < 0.1 for r in feat[:top]])
+        pdf.savefig(fig)
+        plt.close(fig)
+    return True
+
+
+def page_highlights_novel(pdf, C, rows, rfam, top=28):
+    if not rows and not rfam:
+        return False
+    if rows:
+        multi = [r for r in rows if r["samples"] >= 2]
+        fig = cpage(pdf, "highlights — recurrent novel sRNAs", "novel sRNA loci without Rfam hit (module novel) of all "
+                    "libraries, clustered across samples by shared sequence (exact 21-mers); sorted by samples; "
+                    "MFE/nt: RNAfold energy per nt (lower = more structured)", "highlights_novel")
+        fig.text(0.03, 0.87, "%d clusters, %d in ≥ 2 samples, %d in ≥ 10 samples" % (
+            len(rows), len(multi), sum(1 for r in rows if r["samples"] >= 10)), fontsize=8, fontweight="bold")
+        ax = fig.add_axes([0.02, 0.04, 0.95, 0.80])
+        R.table(ax, [[r["cluster"], r["samples"], r["groups"], r["libraries"], _short(r["locus_class"], 18),
+                      fmt(r["median_length"], 3), fmt(r["median_reads_per_sample"], 3), fmt(r["median_mfe_per_nt"], 2),
+                      _short(r["taxon"] or "–", 30), _short(r["rep_sequence"], 44)] for r in rows[:top]],
+                ["cluster", "samples", "samples per group", "libraries", "locus", "nt", "reads/sample",
+                 "MFE/nt", "taxon (representative)", "representative sequence (5′→3′)"], fontsize=5.6,
+                left=(0, 2, 3, 4, 8, 9), rowscale=1.1,
+                col_widths=[0.07, 0.045, 0.11, 0.075, 0.085, 0.045, 0.06, 0.045, 0.16, 0.305])
+        pdf.savefig(fig)
+        plt.close(fig)
+    if rfam:
+        fig = cpage(pdf, "highlights — known ncRNA families among the novel loci", "best Rfam hit (cmscan) of the "
+                    "novel loci of all libraries, rRNA / tRNA families left out; sorted by number of samples",
+                    "highlights_rfam")
+        ax = fig.add_axes([0.02, 0.04, 0.95, 0.82])
+        R.table(ax, [[r["family"], r["accession"], _short(r["description"], 60), r["samples"], r["groups"],
+                      r["libraries"], r["loci"]] for r in rfam[:32]],
+                ["family", "Rfam", "description", "samples", "samples per group", "libraries", "loci"],
+                fontsize=6, left=(0, 1, 2, 4, 5), rowscale=1.1, col_widths=[0.15, 0.07, 0.38, 0.06, 0.15, 0.11, 0.06])
+        pdf.savefig(fig)
+        plt.close(fig)
+    return True
+
+
+def page_highlights_chimera(pdf, C, lib, rows, top=24):
+    if not lib:
+        return False
+    fig = cpage(pdf, "highlights — chimeric reads (candidate RNA–RNA pairs)", "module chimera; sRNA-like–mRNA = "
+                "ncRNA / novel / intergenic arm with a 5′ UTR / CDS arm; complementarity: arms vs re-paired arms "
+                "(Mann–Whitney); same bin: inter-contig chimeras with both arms in one bin vs expected",
+                "highlights_chimera")
+    summ = []
+    for t in sorted({x["type"] for x in lib}, key=lambda t: (t == "metaT", t)):
+        L = [x for x in lib if x["type"] == t]
+        pc = [x["p_complementarity"] for x in L if not math.isnan(x["p_complementarity"])]
+        sb = [(x["same_bin"], x["same_bin_expected"]) for x in L if not math.isnan(x["same_bin"])]
+        summ.append([t, len(L), fmt(float(np.median([x["reads_used"] for x in L])), 3),
+                     fmt(float(np.median([x["pairs_q005"] for x in L])), 3), len(pc),
+                     sum(1 for p in pc if p < 0.05),
+                     fmt(float(np.median([x[0] for x in sb])), 2) if sb else "NA",
+                     fmt(float(np.median([x[1] for x in sb])), 2) if sb else "NA"])
+    ax = fig.add_axes([0.03, 0.70, 0.94, 0.17])
+    R.table(ax, summ, ["data", "libraries", "median chimeric reads", "median pairs q<0.05",
+                       "libraries tested (sRNA–mRNA)", "complementarity p<0.05", "median same-bin share",
+                       "median expected"], fontsize=6.5, rowscale=1.2,
+            col_widths=[0.10, 0.08, 0.13, 0.13, 0.15, 0.13, 0.14, 0.12])
+    if rows:
+        ax = fig.add_axes([0.02, 0.04, 0.95, 0.60])
+        R.table(ax, [[_short(r["group"], 16), _short("%s (%s)" % (r["name_a"], r["type_a"]), 40),
+                      _short("%s (%s)" % (r["name_b"], r["type_b"]), 40), r["samples"], r["libraries"],
+                      fmt(r["reads"], 3), fmt(r["median_dG"], 3), fmt(r["median_p_complementarity"], 2),
+                      r["same_bin"], _short(r["taxon"], 26)] for r in rows[:top]],
+                ["group", "partner a", "partner b", "samples", "libraries", "reads", "ΔG", "p compl.", "same bin",
+                 "taxon"], fontsize=5.8, left=(0, 1, 2, 4, 8, 9), rowscale=1.1,
+                col_widths=[0.09, 0.22, 0.22, 0.05, 0.08, 0.05, 0.05, 0.06, 0.05, 0.13],
+                title="candidate pairs with q < 0.05, pooled over libraries by partner (sRNA-like–mRNA first)")
+    pdf.savefig(fig)
+    plt.close(fig)
+    return True
+
+
 def page_methods(pdf, C):
     fig = R.page(pdf, "cohort", "methods and caveats")
     txt = [
@@ -2883,6 +3184,12 @@ def main():
     ap.add_argument("--model", default="", help="covariate-adjusted models, comma-separated, terms joined by '+', "
                                                   "e.g. 'group+site, group+site+sex+age' (metadata columns or library "
                                                   "metrics such as qc_lRNA_RIN); '' = none")
+    ap.add_argument("--no-heterogeneity", action="store_true",
+                    help="skip the heterogeneity pages (dispersion, patients outside the control range)")
+    ap.add_argument("--highlights-min-samples", type=int, default=3,
+                    help="group-specific CRISPR systems: minimum samples of the group with the system [3]")
+    ap.add_argument("--highlights-top", type=int, default=300,
+                    help="novel loci per library (most reads) used for the cross-sample novel sRNA clusters [300]; 0 = all")
     ap.add_argument("--nmds", default="genus,fn_kegg_pathway,mirna,rfam_family",
                     help="profiles for NMDS pages (genus, family, mirna, rfam_family, rna_class, fn_kegg_pathway, "
                          "fn_kegg_ko, fn_pfam; '' = none)")
@@ -3020,6 +3327,58 @@ def main():
         write_tsv(os.path.join(d, "stats", "cohort.integrity_vs_qc.tsv"),
                   ["type", "qc", "indicator", "n", "rho", "p", "q"], iq)
 
+    # cross-sample highlights: CRISPR systems, recurrent novel sRNAs, chimeras
+    H = {}
+    try:
+        keep = [k for k in C.pairs if k not in C.excluded]
+        H["crispr"] = HL.crispr_systems(a.outdir, keep, C.group)
+        uni = sorted({s for s, _ in keep})
+        gb = {s: (C.group(s), C.meta_val(s, a.match_col) if a.match_col else "") for s in C.samples}
+        H["crispr_group"] = HL.crispr_group_specific(H["crispr"], gb, uni, min_samples=a.highlights_min_samples)
+        H["group_specific"] = group_specific_features(C, H, gb, uni, a.highlights_min_samples)
+        H["novel"], _ = HL.novel_clusters(a.outdir, keep, C.group, top_per_lib=a.highlights_top)
+        H["rfam"] = HL.novel_rfam(a.outdir, keep, C.group)
+        H["chim_lib"], H["chim"] = HL.chimeras(a.outdir, sorted({s for s, _ in keep}), C.types)
+        for key, name in (("crispr", "crispr_systems"), ("crispr_group", "crispr_group_specific"),
+                          ("group_specific", "group_specific_features"), ("novel", "novel_srna_clusters"), ("rfam", "novel_rfam_families"),
+                          ("chim_lib", "chimera_libraries"), ("chim", "chimera_pairs")):
+            rows = H[key]
+            if rows:
+                cols = [c for c in rows[0] if not c.startswith("_")]
+                write_tsv(os.path.join(d, "stats", "cohort.highlights.%s.tsv" % name), cols,
+                          [[r[c] for c in cols] for r in rows])
+        if H["novel"]:
+            with open(os.path.join(d, "stats", "cohort.highlights.novel_srna_clusters.fa"), "w") as fh:
+                for r in H["novel"]:
+                    fh.write(">%s samples=%d locus=%s sample=%s/%s\n%s\n" % (
+                        r["cluster"], r["samples"], r["rep_locus"], r["rep_sample"], r["rep_type"], r["rep_sequence"]))
+        sys.stderr.write("[cohort] highlights: %d CRISPR systems, %d novel sRNA clusters (%d in >= 2 samples), "
+                         "%d Rfam families, %d chimera libraries\n" % (
+                             len(H["crispr"]), len(H["novel"]), sum(1 for r in H["novel"] if r["samples"] >= 2),
+                             len(H["rfam"]), len(H["chim_lib"])))
+    except Exception as e:                       # highlights must not stop the cohort report
+        sys.stderr.write("[cohort] highlights skipped (%s: %s)\n" % (type(e).__name__, e))
+
+    # heterogeneity of the disease groups (subtypes): dispersion and patients outside the control range
+    HZ = {}
+    if len(C.groups) > 1 and not a.no_heterogeneity:
+        try:
+            HZ["disp"], disp_d = HT.dispersion(C, sys.modules[__name__], perms=a.permutations)
+            HZ["feat"], load_rows, HZ["load"] = HT.outliers(C, sys.modules[__name__], HL,
+                                                             name_of=lambda f: tname(f, 60).replace(f, "").strip())
+            for key, rows_, name in (("disp", HZ["disp"], "dispersion"), ("disp_d", disp_d, "dispersion_distances"),
+                                     ("feat", HZ["feat"], "outlier_features"), ("load", HZ["load"], "outlier_load"),
+                                     ("load_rows", load_rows, "outlier_load_per_library")):
+                if rows_:
+                    cols = list(rows_[0])
+                    write_tsv(os.path.join(d, "stats", "cohort.heterogeneity.%s.tsv" % name), cols,
+                              [[r[c] for c in cols] for r in rows_])
+            sys.stderr.write("[cohort] heterogeneity: %d dispersion tests, %d features outside the control range "
+                             "(p < 0.05, %d with q < 0.1)\n" % (len(HZ["disp"]), len(HZ["feat"]),
+                                                                sum(1 for r in HZ["feat"] if r["q"] < 0.1)))
+        except Exception as e:
+            sys.stderr.write("[cohort] heterogeneity skipped (%s: %s)\n" % (type(e).__name__, e))
+
     # automated Methods (needs the tables above)
     mfile = ""
     if a.methods_style and a.methods_style != "none":
@@ -3043,6 +3402,11 @@ def main():
         jobs = [
             ("overview", lambda: page_overview(pdf, C)),
             ("findings", lambda: page_findings(pdf, C)),
+            ("highlights_crispr", lambda: page_highlights_crispr(pdf, C, H.get("crispr"))),
+            ("highlights_crispr_group", lambda: page_highlights_crispr_group(pdf, C, H.get("crispr_group"))),
+            ("highlights_group", lambda: page_highlights_group(pdf, C, H.get("group_specific"))),
+            ("highlights_novel", lambda: page_highlights_novel(pdf, C, H.get("novel"), H.get("rfam"))),
+            ("highlights_chimera", lambda: page_highlights_chimera(pdf, C, H.get("chim_lib"), H.get("chim"))),
             ("qc_flags", lambda: page_qc_flags(pdf, C)),
             ("qc", lambda: page_grid(pdf, C, "qc", "library metrics by group", "read fate shares, depth, mapping, "
                                      "novel loci, CRISPR; boxes per fraction", [
@@ -3080,6 +3444,7 @@ def main():
             ("mirna_top", lambda: page_mirna_top(pdf, C)),
             ("functions", lambda: page_functions(pdf, C)),
             ("antisense", lambda: page_antisense(pdf, C)),
+            ("heterogeneity", lambda: page_heterogeneity(pdf, C, HZ)),
             ("models_overview", lambda: page_models_overview(pdf, C)),
             ("models", lambda: page_models(pdf, C)),
             ("paired", lambda: page_paired(pdf, C)),

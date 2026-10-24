@@ -71,14 +71,14 @@ list=$tmp/files.list
   for s in "${SAMPLES[@]}"; do
     # QC / split statistics
     find "$s/Stats" -type f \( -name '*.tsv' -o -name '*.cutadapt.log' -o -name '*.txt' -o -name '*_fastqc.zip' \) -size -"$MAXS" 2>/dev/null || true
-    # all analysis modules (human, nonhuman, assembly, novel, fragments, bins, crispr, annotation-free tables)
+    # all analysis modules (human, nonhuman, assembly, novel, fragments, bins, crispr, chimera, annotation-free tables)
     find "$s/Analysis" -path "$s/Analysis/annotation" -prune -o -type f \
          \( -name '*.tsv' -o -name '*.report' -o -name '*.tbl' -o -name '*.bed' -o -name '*.RNAfold.txt' \
-            -o -name '*_ids.txt' \) -size -"$MAXS" -print 2>/dev/null \
+            -o -name '*_ids.txt' -o -name '*.chimera_reads.tsv.gz' \) -size -"$MAXS" -print 2>/dev/null \
       | grep -vE '/assembly/.*\.(mapped|unmapped)\.|\.matrix\.tsv$' || true
     # inputs and the logs that carry numbers / errors
     find "$s/log_cluster_jobs" -type f \( -name 'inputs.tsv' -o -name '*kraken.log' -o -name '*bracken.log' \
-         -o -name 'bowtie.log' -o -name '*.compare.log' -o -name '*.report.log' -o -name '*.srna_crispr.log' \
+         -o -name 'bowtie.log' -o -name '*.compare.log' -o -name '*.report.log' -o -name '*.srna_crispr.log' -o -name '*.srna_chimera.log' \
          -o -name '*.counts.log' \) 2>/dev/null || true
     if [[ $REPORTS -eq 1 && -d "$s/Report" ]]; then
       find "$s/Report" -type f \( -name '*.pdf' -o -name '*.html' -o -name '*_mqc.tsv' -o -name '*.methods.*.md' \)

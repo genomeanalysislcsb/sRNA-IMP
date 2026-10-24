@@ -19,6 +19,8 @@
 #   fragments tRNA / rRNA fragment classes, cleavage sites, coverage profiles
 #   bins      counts per contig, feature, bin (MAG) and GTDB taxon
 #   crispr    sRNAs on CRISPR arrays (crRNAs): per array / spacer, strand, read ends, Cas type
+#   chimera   (optional, not in the default list) chimeric reads = candidate RNA-RNA ligation products:
+#             split mapping on the contigs, arm annotation, pair enrichment, arm complementarity (RNAduplex)
 # Per sample (all types together, run with --compare):
 #   compare   sRNA-Ext vs sRNA-Int vs metaT vs metaG on features, contigs and bins
 #             (any combination of >= 2 available sources)
@@ -38,6 +40,8 @@
 #        novel/               novel ncRNA discovery
 #        fragments/           tRNA/rRNA fragment analysis
 #        bins/                per contig / feature / bin / taxon counts
+#        crispr/              CRISPR arrays
+#        chimera/             chimeric reads (module chimera)
 #     Analysis/comparison/    Ext / Int / metaT / metaG comparison (--compare)
 #     log_cluster_jobs/<type>/<module>/
 #
@@ -63,7 +67,9 @@ set -euo pipefail
 SCRIPT_PATH=$(readlink -f "${BASH_SOURCE[0]}")
 PIPELINE_DIR=$(dirname "$SCRIPT_PATH")
 
-ALL_MODULES="qc,contam,prep,split,human,nonhuman,assembly,novel,fragments,bins,crispr"
+ALL_MODULES="qc,contam,prep,split,human,nonhuman,assembly,novel,fragments,bins,crispr,chimera"
+# default run: all modules except the exploratory ones (run those with -m, e.g. -m chimera)
+DEFAULT_MODULES="qc,contam,prep,split,human,nonhuman,assembly,novel,fragments,bins,crispr"
 
 usage() {
 cat <<EOF
@@ -76,7 +82,8 @@ Options:
   -o, --outdir DIR       base output directory               [\$PWD/imp]
   -c, --config FILE      config file                          [$PIPELINE_DIR/srna_pipeline.config.sh]
   -e, --env ENV          conda/micromamba env (name or path)  [ENV_DEFAULT from config]
-  -m, --modules LIST     comma-separated modules              [$ALL_MODULES]
+  -m, --modules LIST     comma-separated modules              [$DEFAULT_MODULES]
+                         (all: $ALL_MODULES)
   -t, --threads N        threads                              [\$SLURM_CPUS_PER_TASK or 16]
   -r, --row N            process only data row N (1-based; used by SLURM arrays)
   -S, --sample ID        process only rows with this sample id
@@ -103,7 +110,7 @@ EOF
 SAMPLESHEET=""
 OUTDIR="$PWD/imp"
 CONFIG="$PIPELINE_DIR/srna_pipeline.config.sh"
-MODULES="$ALL_MODULES"
+MODULES="$DEFAULT_MODULES"
 THREADS="${SLURM_CPUS_PER_TASK:-16}"
 ROW=""
 SAMPLE_FILTER=""
@@ -397,6 +404,7 @@ set_paths() {
   FRAGDIR=$ANALYSIS_DIR/fragments
   BINSDIR=$ANALYSIS_DIR/bins
   CRISPRDIR=$ANALYSIS_DIR/crispr
+  CHIMDIR=$ANALYSIS_DIR/chimera
   COMPDIR=$SAMPLE_DIR/Analysis/comparison
   if [[ -n "$ASSEMBLY_SUBDIR" ]]; then ASMDIR=$ANALYSIS_DIR/$ASSEMBLY_SUBDIR; else ASMDIR=$ANALYSIS_DIR; fi
 
@@ -1386,6 +1394,100 @@ module_crispr() {
 }
 
 # ==================================================================
+# MODULE: chimera — chimeric reads (candidate RNA-RNA ligation products); exploratory, not in the default list
+# ==================================================================
+module_chimera() {
+  need bowtie samtools python3
+  local L=$LOGDIR/chimera BAM=$ASMDIR/$PREFIX.bam
+  mkdir -p "$L" "$CHIMDIR"
+  [[ -s "$BAM" ]] || die "missing $BAM — run module assembly first"
+  [[ -s "$ASSEMBLY.gz" && -s "$GBED" ]] || die "missing assembly/annotation — run module prep first"
+  make_tempdir
+  ensure_assembly_bowtie_index
+  local gb opt=() dup=${RNADUPLEX:-} x
+  gb=$(annotation_bed)                                   # + rRNA genes rescued by cmscan (module novel)
+  opt+=(--gbed "$gb")
+  [[ -s "$NOVELDIR/$PREFIX.clusters.supported.bed" ]] && opt+=(--novel-bed "$NOVELDIR/$PREFIX.clusters.supported.bed")
+  [[ -n "$IN_BINS" ]] && opt+=(--contig2bin "$IN_BINS")      # organism of each arm (same bin vs expected)
+  [[ -n "$IN_GTDB" ]] && opt+=(--gtdbtk "$IN_GTDB")
+  if [[ -z "$dup" ]]; then                               # RNAduplex: this env, else the novel env (ViennaRNA)
+    for x in RNAduplex "${ENV_NOVEL:-}/bin/RNAduplex"; do
+      if command -v "$x" >/dev/null 2>&1; then dup=$(command -v "$x"); break; fi
+    done
+  fi
+  [[ -n "$dup" ]] && log "RNAduplex: $dup" || warn "RNAduplex not found (set RNADUPLEX) — no complementarity test"
+  log "chimeric reads (min arm ${CHIMERA_MIN_ARM:-18} nt) ..."
+  python3 "$SCRIPTS_DIR/srna_chimera.py" --bam "$BAM" --assembly "$ASSEMBLY.gz" --index "$ASSEMBLY" \
+    "${opt[@]}" --out-prefix "$CHIMDIR/$PREFIX" --threads "$THREADS" \
+    --min-arm "${CHIMERA_MIN_ARM:-18}" --max-hits "${CHIMERA_MAX_HITS:-5}" \
+    --arm-mismatches "${CHIMERA_ARM_MISMATCHES:-1}" --max-gap "${CHIMERA_MAX_GAP:-2}" \
+    --colinear-max "${CHIMERA_COLINEAR_MAX:-1000}" --utr5 "${CHIMERA_UTR5:-150}" --utr3 "${CHIMERA_UTR3:-100}" \
+    --flank "${CHIMERA_FLANK:-20}" --null "${CHIMERA_NULL:-20}" --max-pairs "${CHIMERA_MAX_PAIRS:-5000}" \
+    --rnaduplex "$dup" 2> "$L/$PREFIX.srna_chimera.log" \
+    || die "srna_chimera.py failed (see $L/$PREFIX.srna_chimera.log)"
+  tail -n 1 "$L/$PREFIX.srna_chimera.log" | sed 's/^/    /'
+  log "chimeras: $CHIMDIR/$PREFIX.chimera_{summary,pairs,energy,typepairs,bins}.tsv"
+  [[ "${CHIMERA_MT:-1}" == 1 ]] && chimera_mt "$gb" "$dup"
+  return 0
+}
+
+# metaT chimeras (split reads, discordant pairs) from the IMP3 metaT BAM; once per sample (first sRNA type that
+# gets here), output in Analysis/metaT/chimera/. BAM: CHIMERA_MT_BAM (<ID>/<id> placeholders), else
+# <IMP sample dir>/Assembly/mt.reads.sorted.bam with the IMP dir taken from the metaT_features column.
+chimera_mt() {
+  local gb=$1 dup=$2 bam=${CHIMERA_MT_BAM:-} imp
+  if [[ -n "$bam" ]]; then
+    bam=${bam//<ID>/$PREFIX}; bam=${bam//<id>/${PREFIX,,}}
+  elif [[ -n "$IN_MTF" && -d "$IN_MTF" ]]; then
+    imp=${IN_MTF%/}; imp=${imp%/Analysis/annotation}
+    bam=$imp/Assembly/mt.reads.sorted.bam
+  fi
+  if [[ -z "$bam" || ! -s "$bam" ]]; then
+    log "metaT chimeras: no metaT BAM (${bam:-set CHIMERA_MT_BAM}) — skipped"
+    return 0
+  fi
+  local D=$SAMPLE_DIR/Analysis/metaT/chimera LM=$SAMPLE_DIR/log_cluster_jobs/metaT/chimera
+  local stamp=$SAMPLE_DIR/log_cluster_jobs/metaT/.chimera.done LOCK=$SAMPLE_DIR/log_cluster_jobs/metaT/.chimera.lock
+  mkdir -p "$D" "$LM"
+  if [[ -e "$stamp" && $FORCE -eq 0 ]]; then
+    log "metaT chimeras already done ($stamp)"
+    return 0
+  fi
+  # one job per sample does the metaT part; the other sRNA type does not wait for it
+  if ! mkdir "$LOCK" 2>/dev/null; then
+    log "metaT chimeras: running in another job ($(cat "$LOCK/owner" 2>/dev/null || echo '?')) — not repeated here;"
+    log "  if that job no longer runs, remove $LOCK and re-run -m chimera -f"
+    return 0
+  fi
+  echo "${SLURM_JOB_ID:-local}:$(hostname):$$" > "$LOCK/owner"
+  HELD_LOCKS+=("$LOCK")
+  if [[ -e "$stamp" && $FORCE -eq 0 ]]; then
+    release_lock "$LOCK"
+    log "metaT chimeras already done ($stamp)"
+    return 0
+  fi
+  local opt=(--gbed "$gb") t0=$SECONDS
+  [[ -s "$NOVELDIR/$PREFIX.clusters.supported.bed" ]] && opt+=(--novel-bed "$NOVELDIR/$PREFIX.clusters.supported.bed")
+  [[ -n "$IN_BINS" ]] && opt+=(--contig2bin "$IN_BINS")
+  [[ -n "$IN_GTDB" ]] && opt+=(--gtdbtk "$IN_GTDB")
+  log "metaT chimeras from $bam ..."
+  if python3 "$SCRIPTS_DIR/srna_chimera_mt.py" --bam "$bam" --assembly "$ASSEMBLY.gz" "${opt[@]}" \
+       --out-prefix "$D/$PREFIX" --threads "$THREADS" --strandedness "${CHIMERA_MT_STRAND:-auto}" \
+       --min-arm "${CHIMERA_MT_MIN_ARM:-25}" --min-mapq "${CHIMERA_MT_MIN_MAPQ:-20}" --edge "${CHIMERA_MT_EDGE:-500}" \
+       --colinear-max "${CHIMERA_COLINEAR_MAX:-1000}" --utr5 "${CHIMERA_UTR5:-150}" --utr3 "${CHIMERA_UTR3:-100}" \
+       --flank "${CHIMERA_FLANK:-20}" --null "${CHIMERA_NULL:-20}" --max-pairs "${CHIMERA_MAX_PAIRS:-5000}" \
+       --rnaduplex "$dup" 2> "$LM/$PREFIX.srna_chimera_mt.log"; then
+    printf '%s\t%s\n' "$(date '+%F %T')" "$(( SECONDS - t0 ))" > "$stamp"
+    tail -n 1 "$LM/$PREFIX.srna_chimera_mt.log" | sed 's/^/    /'
+    log "metaT chimeras: $D/$PREFIX.chimera_*.tsv"
+  else
+    warn "srna_chimera_mt.py failed (see $LM/$PREFIX.srna_chimera_mt.log) — sRNA chimeras are kept"
+  fi
+  release_lock "$LOCK"
+  return 0
+}
+
+# ==================================================================
 # COMPARE (per sample, --compare): sRNA types vs metaT / metaG
 # ==================================================================
 run_compare() {   # sample ; uses CMP_* arrays filled by the driver
@@ -1757,6 +1859,16 @@ chk_mod_crispr() {
   chk_script srna_crispr.py
   return 0
 }
+chk_mod_chimera() {
+  chk_tool bowtie samtools python3
+  chk_script srna_chimera.py
+  chk_script srna_chimera_mt.py
+  local d=${RNADUPLEX:-}
+  [[ -z "$d" ]] && { d=$(command -v RNAduplex 2>/dev/null) || d="${ENV_NOVEL:-}/bin/RNAduplex"; }
+  if [[ -x "$d" ]]; then _ok "RNAduplex" "$d"
+  else echo "#   (RNAduplex not found: chimeras without the complementarity test; set RNADUPLEX)"; fi
+  return 0
+}
 chk_mod_compare() {
   chk_tool python3
   chk_script srna_compare.py
@@ -1911,7 +2023,11 @@ run_cohort() {
       [[ -d "$OUTDIR/$S/Report/multiqc" ]] && dirs+=("$OUTDIR/$S/Report/multiqc")
     done
     # --dirs: sample names carry <sample>/Stats/<type>, otherwise Int and Ext of a sample collide
-    "$MULTIQC" -f -q --dirs --dirs-depth 3 -o "$CDIR/multiqc" -n multiqc_report.html "${dirs[@]}" \
+    # raw-read FastQC left out (cutadapt has the raw numbers); config: one name per library, light sections
+    local mqcfg=()
+    [[ -s "$SCRIPTS_DIR/multiqc_cohort_config.yaml" ]] && mqcfg=(-c "$SCRIPTS_DIR/multiqc_cohort_config.yaml")
+    "$MULTIQC" -f -q --dirs --dirs-depth 3 -x '*.raw_fastqc.zip' ${mqcfg[@]+"${mqcfg[@]}"} \
+      -o "$CDIR/multiqc" -n multiqc_report.html "${dirs[@]}" \
       > "$L/multiqc.log" 2>&1 && log "MultiQC report: $CDIR/multiqc/multiqc_report.html" \
       || warn "MultiQC failed (see $L/multiqc.log)"
   elif [[ -n "${MULTIQC:-}" ]]; then

@@ -2,7 +2,7 @@
 
 Modules run per sample-sheet row, always in this order (whatever order `-m` lists them in):
 
-`qc → contam → prep → split → human → nonhuman → assembly → novel → fragments → bins → crispr`, and per sample
+`qc → contam → prep → split → human → nonhuman → assembly → novel → fragments → bins → crispr` (optional: `chimera`), and per sample
 afterwards `--compare`.
 
 ```mermaid
@@ -234,6 +234,59 @@ Outputs (`Analysis/<type>/crispr/`): `<s>.crispr_arrays.tsv`, `<s>.crispr_units.
 included, e.g. to search protospacers), `<s>.crispr_ends.tsv`, `<s>.crispr_lengths.tsv`, `<s>.crispr_genes.tsv` (Cas genes) and
 `<s>.crispr_coverage.tsv` (per-base + / − coverage of the 5 arrays with most reads, with their Cas genes and
 500 nt flanks; run-length encoded) for the locus plots of the report.
+
+## 10c. chimera — chimeric reads, candidate RNA–RNA interactions (optional, `-m chimera`)
+
+Exploratory module, not part of the default module list. Methods such as CLASH (Kudla et al. 2011) and RIL-seq
+crosslink RNA duplexes and ligate the partners before sequencing, so one read contains both RNAs. Standard sRNA
+libraries skip these steps: chimeric reads are mostly library artefacts (template switching, ligation of abundant
+RNAs). The module therefore pairs every chimera with a test that real duplexes pass and random joins do not.
+
+`scripts/srna_chimera.py`:
+
+* **candidates**: reads not mapped end-to-end on the contigs (unmapped records of the assembly BAM),
+  ≥ 2 × `CHIMERA_MIN_ARM` nt, not low-complexity; identical sequences collapsed
+* **arms**: the first and last `CHIMERA_MIN_ARM` nt are mapped exactly with bowtie (≤ `CHIMERA_MAX_HITS` hits),
+  then extended along the contig (≤ `CHIMERA_ARM_MISMATCHES`); the two arms must cover the read
+  (≤ `CHIMERA_MAX_GAP` nt in between; overlapping arms = ambiguous junction)
+* **class**: `inter` (different contigs), `intra` (same contig, not colinear), `colinear` (same strand, 3′ arm
+  ≤ `CHIMERA_COLINEAR_MAX` nt downstream: deletions / local template switches; reported, not used further).
+  If any placement of the arms is colinear, the read is counted as colinear.
+  Two further artefact classes are reported and not used: `contig_edge` (the junction sits at the end of one contig
+  and the start of another: assembly break) and `divergent` (the whole read is ≥ 85 % identical to the contig of
+  one arm: a strain variant or redundant contig, not two RNAs).
+* **annotation** of each arm: rRNA (incl. cmscan-rescued), tRNA, ncRNA, CRISPR, CDS, 5′ UTR
+  (`CHIMERA_UTR5` nt upstream of a CDS start), 3′ UTR, novel sRNA locus (module novel), intergenic; `_as` = antisense
+* **pairs of features**: reads, unique sequences and enrichment over the arms' overall chimera frequency
+  (one-sided hypergeometric test as in RIL-seq, BH-FDR)
+* **organism**: bin and GTDB taxon of each arm; for inter-contig chimeras the share with both arms in the same bin,
+  against the share expected from the arms' bin frequencies (`chimera_bins.tsv`): real sRNA–target pairs are mostly
+  within one organism, random joins of abundant RNAs mostly between organisms
+* **complementarity**: duplex free energy (ViennaRNA `RNAduplex`) of both arms ± `CHIMERA_FLANK` nt against two
+  nulls with `CHIMERA_NULL` draws each: the 3′ arm **dinucleotide-shuffled** (same composition, so GC content and
+  organism do not count as pairing; main test, `p_complementarity`, `p_observed_lower_than_null`) and the 3′ arms of
+  other chimeras (re-paired). Mann–Whitney per group of pairs (rRNA–rRNA, rRNA–other, tRNA–other, sRNA-like–mRNA,
+  mRNA–mRNA, other). Only reads that contain both arms are tested (metaT discordant pairs are not: the mates are
+  not the pairing regions).
+
+Interpretation: the rRNA–rRNA and colinear groups are the background. A group whose arms pair better than
+re-paired arms (low `p_observed_lower_than_null` in `chimera_energy.tsv`), above all sRNA-like–mRNA (ncRNA, novel
+sRNA or intergenic arm with a 5′ UTR / CDS arm), points to real RNA–RNA duplexes; pairs are candidates for
+validation, not a measured interactome. With 50-nt reads the arms are 18–32 nt, so most targets are seen only
+through a short stretch.
+
+**metaT chimeras** (`scripts/srna_chimera_mt.py`, same module, once per sample; `CHIMERA_MT=1`): the IMP3 metaT
+BAM (`<IMP>/Assembly/mt.reads.sorted.bam`, bwa-mem2 `-M`) gives longer partners: **split reads** (primary +
+supplementary / secondary alignment, each part ≥ `CHIMERA_MT_MIN_ARM` nt, together covering the read; junctions
+at the ends of two contigs = assembly break, class `contig_edge`, not used) and **discordant pairs** (R1 and R2
+on different contigs, MAPQ ≥ `CHIMERA_MT_MIN_MAPQ`; mates pointing to a contig end < `CHIMERA_MT_EDGE` nt away
+are assembly breaks). The RNA strand follows the library strandedness (`CHIMERA_MT_STRAND=auto`: R1 sense or
+antisense to CDS). IMP3 removes rRNA reads before mapping, so rRNA chimeras are largely missing in metaT.
+Outputs in `Analysis/metaT/chimera/` (same tables).
+
+Outputs (`Analysis/<type>/chimera/`): `<s>.chimera_summary.tsv`, `<s>.chimera_reads.tsv.gz`,
+`<s>.chimera_pairs.tsv` (with bin / taxon of both arms), `<s>.chimera_typepairs.tsv`, `<s>.chimera_energy.tsv`,
+`<s>.chimera_bins.tsv`.
 
 ## 11. --compare — sRNA-Ext vs sRNA-Int vs metaT vs metaG (`srna_pipeline.sh`)
 
