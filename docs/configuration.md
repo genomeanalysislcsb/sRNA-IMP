@@ -151,7 +151,7 @@ ASSEMBLY_RECOUNT_ONLY=1 RRNA_EXCLUDE_RFAM=1 ./srna_pipeline.sh -s samples.tsv -o
 | `COHORT_PERMUTATIONS` | `999` | PERMANOVA permutations |
 | `COMPARE_BIN_BASIS` | `contig,cds,no_rrna` | how reads are summed per bin; the first is the main bin level (`bins.tsv`), the others add `bins_<basis>.tsv` and summary rows `bin_<basis>` (see workflow §11) |
 
-## chimera (optional module, `-m chimera`)
+## chimera (optional, experimental module, `-m chimera`)
 
 | variable | default | meaning |
 |---|---|---|

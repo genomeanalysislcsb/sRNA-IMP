@@ -235,7 +235,13 @@ included, e.g. to search protospacers), `<s>.crispr_ends.tsv`, `<s>.crispr_lengt
 `<s>.crispr_coverage.tsv` (per-base + / − coverage of the 5 arrays with most reads, with their Cas genes and
 500 nt flanks; run-length encoded) for the locus plots of the report.
 
-## 10c. chimera — chimeric reads, candidate RNA–RNA interactions (optional, `-m chimera`)
+## 10c. chimera — chimeric reads, candidate RNA–RNA interactions (optional, experimental, `-m chimera`)
+
+> **Experimental.** In a pilot (one sample, sRNA-Int, sRNA-Ext and metaT) the arms of sRNA-library chimeras paired
+> better than shuffled and re-paired arms in all classes of pairs alike (rRNA, tRNA, mRNA, sRNA-like), i.e. a general
+> preference for partially paired fragments during library preparation or RNA decay, not a specific sRNA–target
+> signal; metaT chimeras showed no complementarity and no same-organism enrichment. Without crosslinking and
+> proximity ligation (CLASH, RIL-seq), treat pairs as hypotheses only.
 
 Exploratory module, not part of the default module list. Methods such as CLASH (Kudla et al. 2011) and RIL-seq
 crosslink RNA duplexes and ligate the partners before sequencing, so one read contains both RNAs. Standard sRNA

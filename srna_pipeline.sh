@@ -19,7 +19,7 @@
 #   fragments tRNA / rRNA fragment classes, cleavage sites, coverage profiles
 #   bins      counts per contig, feature, bin (MAG) and GTDB taxon
 #   crispr    sRNAs on CRISPR arrays (crRNAs): per array / spacer, strand, read ends, Cas type
-#   chimera   (optional, not in the default list) chimeric reads = candidate RNA-RNA ligation products:
+#   chimera   (optional, EXPERIMENTAL, not in the default list) chimeric reads = candidate RNA-RNA ligation products:
 #             split mapping on the contigs, arm annotation, pair enrichment, arm complementarity (RNAduplex)
 # Per sample (all types together, run with --compare):
 #   compare   sRNA-Ext vs sRNA-Int vs metaT vs metaG on features, contigs and bins
@@ -225,6 +225,7 @@ stage_plain() {     # src dst
 
 # --- portable lock (mkdir is atomic on NFS/GPFS/Lustre) -------------
 HELD_LOCKS=()
+RUN_START=$(date +%s)   # start of this run (chimera: metaT part redone once per run with -f)
 acquire_lock() {    # lockdir [max_wait_seconds]
   local l=$1 max=${2:-86400} waited=0
   until mkdir "$l" 2>/dev/null; do
@@ -1394,7 +1395,7 @@ module_crispr() {
 }
 
 # ==================================================================
-# MODULE: chimera — chimeric reads (candidate RNA-RNA ligation products); exploratory, not in the default list
+# MODULE: chimera — chimeric reads (candidate RNA-RNA ligation products); EXPERIMENTAL, not in the default list
 # ==================================================================
 module_chimera() {
   need bowtie samtools python3
@@ -1449,7 +1450,8 @@ chimera_mt() {
   local D=$SAMPLE_DIR/Analysis/metaT/chimera LM=$SAMPLE_DIR/log_cluster_jobs/metaT/chimera
   local stamp=$SAMPLE_DIR/log_cluster_jobs/metaT/.chimera.done LOCK=$SAMPLE_DIR/log_cluster_jobs/metaT/.chimera.lock
   mkdir -p "$D" "$LM"
-  if [[ -e "$stamp" && $FORCE -eq 0 ]]; then
+  # done before, or (with -f) already redone in this run by the other sRNA type of the sample
+  if [[ -e "$stamp" && ( $FORCE -eq 0 || $(stat -c %Y "$stamp" 2>/dev/null || echo 0) -ge $RUN_START ) ]]; then
     log "metaT chimeras already done ($stamp)"
     return 0
   fi
@@ -1461,7 +1463,7 @@ chimera_mt() {
   fi
   echo "${SLURM_JOB_ID:-local}:$(hostname):$$" > "$LOCK/owner"
   HELD_LOCKS+=("$LOCK")
-  if [[ -e "$stamp" && $FORCE -eq 0 ]]; then
+  if [[ -e "$stamp" && ( $FORCE -eq 0 || $(stat -c %Y "$stamp" 2>/dev/null || echo 0) -ge $RUN_START ) ]]; then
     release_lock "$LOCK"
     log "metaT chimeras already done ($stamp)"
     return 0
