@@ -406,3 +406,21 @@ group with the reference group of the same block (site):
 
 Tables: `Cohort/stats/cohort.heterogeneity.{dispersion,dispersion_distances,outlier_features,outlier_load,outlier_load_per_library}.tsv`.
 
+## Report structure
+
+The cohort report starts with a contents page and is organised in sections; the section of each page is shown in
+its upper right corner and the HTML report groups its navigation by section:
+
+1. **Summary** — cohort overview, key findings
+2. **Data quality** — QC verdicts, flagged libraries, library metrics, RNA integrity
+3. **Composition** — taxa, beta diversity, NMDS, RNA classes, human miRNAs, functions, antisense transcription
+4. **Group comparisons (unadjusted)** — block design, feature tests, sRNA-Int vs sRNA-Ext, agreement with metaG / metaT
+5. **Adjusted models** — a page listing every model (question, term of interest, kind, adjustment, subset,
+   libraries, design notes), the overview of all models, then the results per model
+6. **Heterogeneity and subgroups**
+7. **Highlights across samples** — CRISPR systems, features of one group, recurrent novel sRNAs, chimeras
+8. **Methods**
+
+Settings: `COHORT_NAME` (report title, default `cohort`) and `COHORT_MODEL_NOTES` (optional question per model,
+e.g. `"M9=PD motor severity; M13=RA immunosuppressants"`; otherwise the question is generated from the formula).
+

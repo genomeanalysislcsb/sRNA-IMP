@@ -1752,6 +1752,17 @@ EXPLAIN.update({
         "joined when they share the repeat sequence, so one row is one CRISPR system, usually one species or strain "
         "group. Expressed arrays in many samples point to CRISPR–Cas systems that are active in the gut; a tracrRNA "
         "candidate (type II / V) is an sRNA cluster in the locus pairing with the repeat (per-sample report).",
+    "contents":
+        "The report is organised in sections: first the cohort and the key findings, then data quality (read before "
+        "interpreting differences), what the libraries contain, unadjusted group comparisons, adjusted models, "
+        "heterogeneity (subgroups of patients), notable single findings across samples, and the methods. The section "
+        "of each page is shown in its upper right corner.",
+    "models_intro":
+        "Each model asks one question, given by its first term (term of interest): the group contrasts, or e.g. stool "
+        "consistency, a medication or a clinical score. The other terms are adjustments. A subset restricts the model "
+        "to some samples (e.g. PD only). Numeric terms are per standard deviation. Models need ≥ 20 complete "
+        "libraries and ≥ 3 per level; 'design notes' list levels or terms that were dropped. Add a question text per "
+        "model with --model-notes / COHORT_MODEL_NOTES ('M9=PD motor severity; …').",
     "highlights_crispr_group":
         "CRISPR systems that are expressed in one group only, or much more often than in the other groups. Expression "
         "needs the host taxon: a group-specific system usually reflects a strain or species that is more common in that "
@@ -1819,8 +1830,11 @@ def isnum(x):
     return isinstance(x, (int, float)) and not math.isnan(x)
 
 
+COHORT_NAME = "cohort"       # report title (--cohort-name / COHORT_NAME)
+
+
 def cpage(pdf, title, subtitle, key):
-    return R.page(pdf, "cohort", title, subtitle, explain="cohort_" + key)
+    return R.page(pdf, COHORT_NAME, title, subtitle, explain="cohort_" + key)
 
 
 def boxes(ax, C, metric, title, log=False, pct=False, types=None):
@@ -1926,7 +1940,7 @@ def page_overview(pdf, C):
     pdf.savefig(fig)
     plt.close(fig)
     for i, ch in enumerate(chunks[1:], 2):
-        fig = R.page(pdf, "cohort", "covariates by group (%d/%d)" % (i, len(chunks)))
+        fig = R.page(pdf, COHORT_NAME, "covariates by group (%d/%d)" % (i, len(chunks)))
         ax = fig.add_axes([0.03, 0.04, 0.94, 0.86])
         cov_table(ax, ch, "")
         pdf.savefig(fig)
@@ -1972,7 +1986,7 @@ def page_flagged(pdf, C):
         return
     per = 34
     for i in range(0, len(lib), per):
-        fig = R.page(pdf, "cohort", "flagged libraries (%d–%d of %d)" % (i + 1, min(i + per, len(lib)), len(lib)),
+        fig = R.page(pdf, COHORT_NAME, "flagged libraries (%d–%d of %d)" % (i + 1, min(i + per, len(lib)), len(lib)),
                      "FAIL = left out of the statistics (with COHORT_QC_DROP=FAIL); WARN = kept, flagged")
         rows = []
         for s_, t in lib[i:i + per]:
@@ -2312,7 +2326,7 @@ def page_rna_classes(pdf, C):
                 ax.set_title("without rRNA, tRNA and unknown", loc="left", fontsize=7)
         pdf.savefig(fig)
         plt.close(fig)
-        fig = R.page(pdf, "cohort", "RNA classes and Rfam families between groups · %s" % t,
+        fig = R.page(pdf, COHORT_NAME, "RNA classes and Rfam families between groups · %s" % t,
                      "Kruskal-Wallis across %s, BH-FDR within each table; bold: q < %g; Int vs Ext of the same samples: "
                      "paired page (class_* metrics)" % (", ".join(C.groups), SIG_Q))
         # class tests (metrics class_*) and Rfam families
@@ -2560,7 +2574,7 @@ def page_models(pdf, C):
         pdf.savefig(fig)
         plt.close(fig)
         # volcano plots: group contrasts for genera, KEGG pathways and the KO antisense index
-        fig = R.page(pdf, "cohort", "adjusted model %s · volcano plots · %s" % (mlab, t), "%s: %s · red: q < %g; "
+        fig = R.page(pdf, COHORT_NAME, "adjusted model %s · volcano plots · %s" % (mlab, t), "%s: %s · red: q < %g; "
                      "labels: strongest significant features" % (mlab, formula, SIG_Q))
         for vi, (what, lab, xl) in enumerate((("genus", "genera", "adjusted CLR difference"),
                                               ("fn_kegg_pathway", "KEGG pathways", "adjusted CLR difference"),
@@ -3039,6 +3053,126 @@ def page_heterogeneity(pdf, C, HZ, top=32):
     return True
 
 
+# report structure: (key, title, what the section answers, [(page key, short description)])
+REPORT_SECTIONS = [
+    ("summary", "Summary", "the cohort, the libraries in the statistics and the automatic key findings",
+     [("overview", "groups, libraries per fraction, exclusions, covariates by group"),
+      ("findings", "key findings of all sections (automatic)")]),
+    ("quality", "Data quality", "can the libraries be compared? QC verdicts, exclusions, depth, read fate and RNA "
+     "integrity by group", [("qc_flags", "QC verdicts and flagged libraries"), ("qc", "library metrics by group"),
+                            ("integrity", "RNA integrity indicators by group and vs wet-lab RIN")]),
+    ("composition", "Composition", "what the sRNA libraries contain: taxa (rRNA), beta diversity, RNA classes, "
+     "human miRNAs, functions (KEGG / Pfam / COG of CDS reads) and antisense transcription",
+     [("taxa", "rRNA genera by group"), ("beta", "Bray-Curtis PCoA and PERMANOVA"), ("nmds", "NMDS per profile"),
+      ("classes", "RNA classes and Rfam families"), ("mirna", "human miRNAs, origin markers"),
+      ("functions", "functional categories"), ("antisense", "antisense index, hotspots")]),
+    ("comparisons", "Group comparisons (unadjusted)", "exploratory differences between the groups, within blocks "
+     "(site), between fractions and against metaG / metaT",
+     [("matched", "block design, pooled and within-block comparisons"), ("features", "Kruskal-Wallis per feature"),
+      ("paired", "sRNA-Int vs sRNA-Ext"), ("omics", "agreement with metaG / metaT")]),
+    ("models", "Adjusted models", "group and covariate effects adjusted for confounders (OLS on CLR, robust SE); "
+     "the models, their term of interest and all results",
+     [("models_intro", "the models: formula, term of interest, adjustment, subset, libraries"),
+      ("models_overview", "all models at a glance: significant features per outcome set"),
+      ("models", "per model and fraction: tables and volcano plots")]),
+    ("heterogeneity", "Heterogeneity and subgroups", "do only some patients differ (disease subtypes)? spread, "
+     "outlier load and features changed in a subset of patients",
+     [("heterogeneity", "dispersion, outlier load, features outside the control range with patient IDs")]),
+    ("highlights", "Highlights across samples", "the most notable single findings: CRISPR systems, recurrent novel "
+     "sRNAs, ncRNA families, features of one group, chimeras (experimental)",
+     [("highlights_crispr", "CRISPR systems, also by group"), ("highlights_group", "features of one group, all classes"),
+      ("highlights_novel", "recurrent novel sRNAs, Rfam families among novel loci"),
+      ("highlights_chimera", "candidate RNA–RNA pairs (module chimera, experimental)")]),
+    ("methods", "Methods", "statistics, parameters and the automated Methods text",
+     [("methods", "methods and caveats"), ("methods_text", "Methods (journal style)")]),
+]
+
+
+def section_label(key):
+    for i, (k, title, _, _) in enumerate(REPORT_SECTIONS, 1):
+        if k == key:
+            return "%d · %s" % (i, title)
+    return key
+
+
+def page_contents(pdf, C, sections):
+    fig = cpage(pdf, "contents", "%d samples · %s · groups: %s%s" % (
+        len(C.samples), ", ".join(C.types), ", ".join(C.groups) or "–",
+        " · block: %s" % C.a.match_col if C.a.match_col else ""), "contents")
+    y = 0.86
+    for i, (k, title, what, pages) in enumerate(sections, 1):
+        fig.text(0.04, y, "%d  %s" % (i, title), fontsize=11, fontweight="bold", color="#0b3d66", va="top")
+        fig.text(0.30, y - 0.002, what, fontsize=7.5, color="#444", va="top", wrap=True)
+        y -= 0.032
+        for pk, desc in pages:
+            fig.text(0.06, y, "• " + desc, fontsize=7, color="#222", va="top")
+            y -= 0.019
+        y -= 0.012
+    pdf.savefig(fig)
+    plt.close(fig)
+    return True
+
+
+def model_description(C, mi):
+    """(term of interest, kind, adjusted for, subset, description) of a model"""
+    terms = C.model_terms(mi)
+    if not terms:
+        return "", "", "", "", ""
+    focus, others = terms[0], terms[1:]
+    sub = C.model_subset(mi)
+    subset = "%s = %s" % (sub[0], "/".join(sorted(sub[1]))) if sub else "all samples"
+    ref = C.a.reference or (C.groups[0] if C.groups else "")
+    if focus == C.group_col:
+        kind = "groups"
+        desc = "group differences: %s vs %s" % (", ".join(g for g in C.groups if g != ref), ref)
+    else:
+        k = C.kinds.get(focus, "")
+        if k == "numeric":
+            kind = "numeric (per SD)"
+            desc = "change per SD of %s" % focus
+        else:
+            lv = sorted({C.meta_val(s, focus) for s in C.samples} - {"NA"})
+            kind = "categorical (%s)" % "/".join(lv[:4]) if lv else "categorical"
+            desc = "%s (levels vs reference)" % focus
+    if sub:
+        desc += " (%s only)" % "/".join(sorted(sub[1]))
+    return focus, kind, ", ".join(others) or "–", subset, desc
+
+
+def page_models_intro(pdf, C):
+    if not C.models():
+        return False
+    notes = [x.strip() for x in (C.a.model_notes or "").split(";") if x.strip()]
+    fig = cpage(pdf, "adjusted models — the models", "OLS on CLR abundances / metric values per feature, robust "
+                "(HC3) standard errors, BH-FDR per term and outcome set; term of interest = the first term of the "
+                "formula; numeric terms per SD", "models_intro")
+    rows = []
+    for mi, formula in enumerate(C.models()):
+        focus, kind, adj, subset, desc = model_description(C, mi)
+        lab = C.model_label(mi)
+        note = ""
+        for n in notes:
+            if n.split("=", 1)[0].strip() in (lab, lab.split()[0]) and "=" in n:
+                note = n.split("=", 1)[1].strip()
+        if not note and mi < len(notes) and "=" not in notes[mi]:
+            note = notes[mi]
+        libs = []
+        for t in C.types:
+            md = C.model_data(t, mi)
+            libs.append(str(len(md[0])) if md else "–")
+        info = "; ".join(sorted({x for t in C.types for x in ((C.model_data(t, mi) or [None] * 5)[4] or [])}))
+        rows.append([lab, R.short(note or desc, 70), focus, R.short(kind, 22), R.short(adj, 40), subset] + libs +
+                    [R.short(info or "–", 40)])
+    ax = fig.add_axes([0.02, 0.06, 0.95, 0.80])
+    R.table(ax, rows, ["model", "question", "term of interest", "kind", "adjusted for", "samples"] +
+            ["n %s" % t.replace("sRNA-", "") for t in C.types] + ["design notes"], fontsize=6.2,
+            left=(0, 1, 2, 3, 4, 5, 6 + len(C.types)), rowscale=1.25,
+            col_widths=[0.05, 0.25, 0.1, 0.1, 0.17, 0.08] + [0.04] * len(C.types) + [0.17 - 0.04 * (len(C.types) - 2)])
+    pdf.savefig(fig)
+    plt.close(fig)
+    return True
+
+
 def page_highlights_novel(pdf, C, rows, rfam, top=28):
     if not rows and not rfam:
         return False
@@ -3111,7 +3245,7 @@ def page_highlights_chimera(pdf, C, lib, rows, top=24):
 
 
 def page_methods(pdf, C):
-    fig = R.page(pdf, "cohort", "methods and caveats")
+    fig = R.page(pdf, COHORT_NAME, "methods and caveats")
     txt = [
         "Inputs: per-sample pipeline outputs (Stats, Analysis/<type>/*, comparison) of %d samples; metadata %s "
         "(ID column '%s', group column '%s')." % (len(C.samples), C.a.metadata or "none", getattr(C, "id_col", "-"),
@@ -3184,6 +3318,9 @@ def main():
     ap.add_argument("--model", default="", help="covariate-adjusted models, comma-separated, terms joined by '+', "
                                                   "e.g. 'group+site, group+site+sex+age' (metadata columns or library "
                                                   "metrics such as qc_lRNA_RIN); '' = none")
+    ap.add_argument("--cohort-name", default="cohort", help="name of the cohort, used as report title [cohort]")
+    ap.add_argument("--model-notes", default="", help="short question per model, ';'-separated, 'M9=PD motor "
+                    "severity; M13=RA immunosuppressants' or in model order (contents of the models page)")
     ap.add_argument("--no-heterogeneity", action="store_true",
                     help="skip the heterogeneity pages (dispersion, patients outside the control range)")
     ap.add_argument("--highlights-min-samples", type=int, default=3,
@@ -3209,6 +3346,8 @@ def main():
     ap.add_argument("--methods-envs", default="", help="environments for the tool versions (conda-meta)")
     ap.add_argument("--methods-resources", default="", help="resources TSV (default scripts/methods_resources.tsv)")
     a = ap.parse_args()
+    global COHORT_NAME
+    COHORT_NAME = a.cohort_name or "cohort"
     if not a.metadata:
         a.group_col = ""
 
@@ -3400,15 +3539,11 @@ def main():
         pdf = R.Sink(pf, html=a.html)
         pct = dict(pct=True)
         jobs = [
-            ("overview", lambda: page_overview(pdf, C)),
-            ("findings", lambda: page_findings(pdf, C)),
-            ("highlights_crispr", lambda: page_highlights_crispr(pdf, C, H.get("crispr"))),
-            ("highlights_crispr_group", lambda: page_highlights_crispr_group(pdf, C, H.get("crispr_group"))),
-            ("highlights_group", lambda: page_highlights_group(pdf, C, H.get("group_specific"))),
-            ("highlights_novel", lambda: page_highlights_novel(pdf, C, H.get("novel"), H.get("rfam"))),
-            ("highlights_chimera", lambda: page_highlights_chimera(pdf, C, H.get("chim_lib"), H.get("chim"))),
-            ("qc_flags", lambda: page_qc_flags(pdf, C)),
-            ("qc", lambda: page_grid(pdf, C, "qc", "library metrics by group", "read fate shares, depth, mapping, "
+            ("contents", lambda: page_contents(pdf, C, REPORT_SECTIONS)),
+            ("summary|overview", lambda: page_overview(pdf, C)),
+            ("summary|findings", lambda: page_findings(pdf, C)),
+            ("quality|qc_flags", lambda: page_qc_flags(pdf, C)),
+            ("quality|qc", lambda: page_grid(pdf, C, "qc", "library metrics by group", "read fate shares, depth, mapping, "
                                      "novel loci, CRISPR; boxes per fraction", [
                 ("trimmed_fraction", "trimmed (% of raw)", pct), ("adapter_dimer_fraction", "adapter dimers (%)", pct),
                 ("human_fraction", "human (% of trimmed)", pct), ("assembly_mapped_fraction", "mapped to contigs (%)", pct),
@@ -3417,7 +3552,7 @@ def main():
                 ("raw_reads", "raw reads", dict(log=True)), ("novel_loci", "novel candidate loci", {}),
                 ("crispr_reads_per_million_mapped", "CRISPR reads per M mapped", dict(log=True)),
                 ("crispr_arrays_with_10_reads", "CRISPR arrays ≥ 10 reads", {})])),
-            ("integrity", lambda: page_grid(pdf, C, "integrity", "RNA integrity by group", "indicators of module fragments", [
+            ("quality|integrity", lambda: page_grid(pdf, C, "integrity", "RNA integrity by group", "indicators of module fragments", [
                 ("qc_lRNA_RIN", "wet-lab RIN (long RNA)", {}),
                 ("integrity_tRNA_internal_fraction", "tRNA internal fragments", {}),
                 ("integrity_tRNA_3p_CCA_fraction", "3′-CCA share", {}),
@@ -3427,39 +3562,47 @@ def main():
                 ("integrity_rRNA_bin_evenness", "rRNA spread along 16S/23S", {}),
                 ("integrity_median_read_length", "median read length", {}),
                 ("integrity_tRNA_halves_fraction", "tRNA halves (stress)", {})])),
-            ("integrity_qc", lambda: page_integrity_qc(pdf, C)),
-            ("integrity_summary", lambda: page_integrity_summary(pdf, C)),
-            ("taxa", lambda: page_taxa(pdf, C)),
-            ("beta", lambda: page_beta(pdf, C)),
-            ("nmds", lambda: page_nmds(pdf, C)),
-            ("mirna", lambda: page_grid(pdf, C, "mirna", "human miRNAs by group",
+            ("quality|integrity_qc", lambda: page_integrity_qc(pdf, C)),
+            ("quality|integrity_summary", lambda: page_integrity_summary(pdf, C)),
+            ("composition|taxa", lambda: page_taxa(pdf, C)),
+            ("composition|beta", lambda: page_beta(pdf, C)),
+            ("composition|nmds", lambda: page_nmds(pdf, C)),
+            ("composition|classes", lambda: page_rna_classes(pdf, C)),
+            ("composition|mirna", lambda: page_grid(pdf, C, "mirna", "human miRNAs by group",
                                         "share of reads; marker sets; fractions with enough miRNA reads: %s" % (
                                             ", ".join(C.mirna_types()) or "none"), [
                 ("human_miRNA_fraction_of_trimmed", "human miRNA (% trimmed)", dict(pct=True)),
                 ("human_miRNA_reads", "human miRNA reads", dict(log=True))] +
                 [(k, k.replace("miRNA_marker_", "marker: ").replace("_", " ") + " (% miRNA)", pct)
                  for k in C.metrics if k.startswith("miRNA_marker_")], types=C.mirna_types())),
-            ("matched", lambda: page_matched(pdf, C)),
-            ("classes", lambda: page_rna_classes(pdf, C)),
-            ("mirna_top", lambda: page_mirna_top(pdf, C)),
-            ("functions", lambda: page_functions(pdf, C)),
-            ("antisense", lambda: page_antisense(pdf, C)),
-            ("heterogeneity", lambda: page_heterogeneity(pdf, C, HZ)),
-            ("models_overview", lambda: page_models_overview(pdf, C)),
-            ("models", lambda: page_models(pdf, C)),
-            ("paired", lambda: page_paired(pdf, C)),
-            ("omics", lambda: page_grid(pdf, C, "omics", "sRNA vs metaG / metaT", "per-sample Spearman ρ", [
+            ("composition|mirna_top", lambda: page_mirna_top(pdf, C)),
+            ("composition|functions", lambda: page_functions(pdf, C)),
+            ("composition|antisense", lambda: page_antisense(pdf, C)),
+            ("comparisons|matched", lambda: page_matched(pdf, C)),
+            ("comparisons|features", lambda: page_features(pdf, C)),
+            ("comparisons|paired", lambda: page_paired(pdf, C)),
+            ("comparisons|omics", lambda: page_grid(pdf, C, "omics", "sRNA vs metaG / metaT", "per-sample Spearman ρ", [
                 (k, k.replace("rho_vs_", "ρ vs ").replace("_", " "), {}) for k in C.metrics
                 if k.startswith("rho_vs_meta") or k == "rho_vs_sRNA-Int_bin"])),
-            ("features", lambda: page_features(pdf, C)),
-            ("methods", lambda: page_methods(pdf, C)),
-            ("methods_text", lambda: R.pages_markdown(pdf, "cohort", mfile, "methods (%s)" % a.methods_style)
+            ("models|models_intro", lambda: page_models_intro(pdf, C)),
+            ("models|models_overview", lambda: page_models_overview(pdf, C)),
+            ("models|models", lambda: page_models(pdf, C)),
+            ("heterogeneity|heterogeneity", lambda: page_heterogeneity(pdf, C, HZ)),
+            ("highlights|highlights_crispr", lambda: page_highlights_crispr(pdf, C, H.get("crispr"))),
+            ("highlights|highlights_crispr_group", lambda: page_highlights_crispr_group(pdf, C, H.get("crispr_group"))),
+            ("highlights|highlights_group", lambda: page_highlights_group(pdf, C, H.get("group_specific"))),
+            ("highlights|highlights_novel", lambda: page_highlights_novel(pdf, C, H.get("novel"), H.get("rfam"))),
+            ("highlights|highlights_chimera", lambda: page_highlights_chimera(pdf, C, H.get("chim_lib"), H.get("chim"))),
+            ("methods|methods", lambda: page_methods(pdf, C)),
+            ("methods|methods_text", lambda: R.pages_markdown(pdf, COHORT_NAME, mfile, "methods (%s)" % a.methods_style)
              if mfile else False),
         ]
         meta = pf.infodict()
-        meta["Title"] = "%s cohort report" % R.PIPELINE_NAME
+        meta["Title"] = "%s cohort report — %s" % (R.PIPELINE_NAME, COHORT_NAME)
         done = []
         for name, fn in jobs:
+            sk, _, name = name.rpartition("|")
+            pdf.section = section_label(sk) if sk else ""
             try:
                 if fn() is not False:
                     done.append(name)
@@ -3469,7 +3612,8 @@ def main():
                 sys.stderr.write("[cohort] page %s skipped (%s: %s)\n" % (name, type(e).__name__, e))
                 plt.close("all")
     if a.html:
-        R.write_html(os.path.join(d, "cohort.report.html"), "cohort", C.types, pdf.pages, os.path.basename(pdf_path))
+        R.write_html(os.path.join(d, "cohort.report.html"), COHORT_NAME, C.types, pdf.pages, os.path.basename(pdf_path),
+                     sections=pdf.sections)
     sys.stderr.write("[cohort] %s (pages: %s)\n" % (pdf_path, ", ".join(done)))
 
 

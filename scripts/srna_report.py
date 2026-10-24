@@ -1893,6 +1893,8 @@ def pages_markdown(pdf, sample, md_path, title="methods"):
         plt.close(fig)
         if getattr(pdf, "html", False) and not html_done:
             pdf.pages.append(("%s — %s" % (sample, title), None, md_to_html(text)))
+            if hasattr(pdf, "sections"):
+                pdf.sections.append(getattr(pdf, "section", ""))
             html_done = True
     return True
 
@@ -1902,8 +1904,11 @@ class Sink:
 
     def __init__(self, pdf, html=False, dpi=110):
         self.pdf, self.html, self.dpi, self.pages = pdf, html, dpi, []
+        self.section, self.sections = "", []          # current report section (label in the page corner, HTML nav)
 
     def savefig(self, fig):
+        if self.section:
+            fig.text(0.97, 0.972, self.section, ha="right", va="top", fontsize=8, color="#777")
         finalize(fig)
         self.pdf.savefig(fig)
         if self.html and not getattr(fig, "_no_html", False):
@@ -1911,19 +1916,36 @@ class Sink:
             fig.savefig(buf, format="png", dpi=self.dpi)
             title = fig.texts[0].get_text() if fig.texts else "page %d" % (len(self.pages) + 1)
             self.pages.append((title, base64.b64encode(buf.getvalue()).decode("ascii")))
+            self.sections.append(self.section)
 
 
-def write_html(path, sample, types, pages, pdf_name):
+def write_html(path, sample, types, pages, pdf_name, sections=None):
     esc = htmlmod.escape
-    nav = " · ".join('<a href="#p%d">%s</a>' % (i, esc(p[0].split("—", 1)[-1].strip()))
-                     for i, p in enumerate(pages))
+    if sections and any(sections):
+        sections = list(sections) + [sections[-1]] * (len(pages) - len(sections))
+        groups = []
+        for i, (p, sc) in enumerate(zip(pages, sections)):
+            if not groups or groups[-1][0] != sc:
+                groups.append((sc, []))
+            groups[-1][1].append('<a href="#p%d">%s</a>' % (i, esc(p[0].split("—", 1)[-1].strip())))
+        nav = "".join('<div class="ns"><b>%s</b> %s</div>' % (esc(sc), " · ".join(l)) for sc, l in groups)
+    else:
+        sections = [""] * len(pages)
+        nav = " · ".join('<a href="#p%d">%s</a>' % (i, esc(p[0].split("—", 1)[-1].strip()))
+                         for i, p in enumerate(pages))
 
     def sec(i, p):
         if len(p) > 2 and p[1] is None:            # text page (Markdown rendered to HTML)
             return '<section id="p%d"><h2>%s</h2><div class="md">%s</div></section>' % (i, esc(p[0]), p[2])
         return '<section id="p%d"><h2>%s</h2><img alt="%s" src="data:image/png;base64,%s"></section>' % (
             i, esc(p[0]), esc(p[0]), p[1])
-    body = "\n".join(sec(i, p) for i, p in enumerate(pages))
+    parts, last = [], None
+    for i, p in enumerate(pages):
+        if sections[i] and sections[i] != last:
+            parts.append('<h1 class="sec">%s</h1>' % esc(sections[i]))
+            last = sections[i]
+        parts.append(sec(i, p))
+    body = "\n".join(parts)
     with open(path, "w") as out:
         out.write("""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1933,6 +1955,8 @@ def write_html(path, sample, types, pages, pdf_name):
  header{position:sticky;top:0;background:#fff;border-bottom:1px solid #ddd;padding:10px 16px;z-index:1}
  header h1{font-size:18px;margin:0 0 4px} header .meta{font-size:12px;color:#666} nav{font-size:13px;margin-top:6px}
  nav a{color:#0072B2;text-decoration:none} nav a:hover{text-decoration:underline}
+ nav{max-height:32vh;overflow:auto} nav .ns{margin:2px 0} nav .ns b{color:#333;margin-right:4px}
+ h1.sec{max-width:1200px;margin:28px auto 4px;padding:6px 16px;font-size:19px;border-bottom:2px solid #0072B2;color:#0b3d66}
  section{max-width:1200px;margin:16px auto;padding:0 16px} section h2{font-size:14px;color:#555;margin:8px 0}
  img{width:100%%;height:auto;background:#fff;border:1px solid #ddd;border-radius:4px}
  .md{background:#fff;border:1px solid #ddd;border-radius:4px;padding:8px 24px;font-size:14px;line-height:1.5}

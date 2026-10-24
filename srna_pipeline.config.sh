@@ -235,9 +235,11 @@ COHORT_TERM_NAMES="${COHORT_TERM_NAMES-}"   # optional TSVs term<TAB>name for re
                                # (e.g. KEGG REST list/ko, list/pathway, list/module; Pfam-A.clans.tsv)
 COHORT_NMDS="${COHORT_NMDS-genus,fn_kegg_pathway,mirna,rfam_family}"  # NMDS (Bray-Curtis) pages; also family, rna_class, fn_kegg_ko, fn_pfam; "" = none
 COHORT_NMDS_STARTS="${COHORT_NMDS_STARTS-10}"   # random starts per NMDS (+ 1 PCoA start); ~30 s per NMDS for 180 libraries
+COHORT_NAME="${COHORT_NAME-cohort}"   # name of the cohort: title of the cohort report
 COHORT_MODEL="${COHORT_MODEL-}"   # covariate-adjusted models (OLS on CLR, HC3); several models comma-separated, terms joined by +,
                                   # e.g. "group+site, group+site+sex+age, group+site+sex+age+constipation_status" (= M1, M2, M3);
                                   # terms: metadata columns or library metrics (e.g. qc_lRNA_RIN); "" = none
+COHORT_MODEL_NOTES="${COHORT_MODEL_NOTES-}"   # optional question per model for the models page, e.g. "M9=PD motor severity; M13=RA immunosuppressants"
 COHORT_QC_DROP="${COHORT_QC_DROP-FAIL}"   # libraries left out of the cohort statistics: FAIL | WARN (= WARN+FAIL) | none
 MULTIQC="${MULTIQC-multiqc}"   # MultiQC command (or full path, e.g. $ENVS_DIR/multiqc/bin/multiqc) run by --cohort over all
 METHODS_STYLE="${METHODS_STYLE-nature,star}"   # automated Methods with --report / --cohort: nature, star (STAR Protocols) or both; none = off

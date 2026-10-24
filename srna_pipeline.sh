@@ -2001,7 +2001,7 @@ run_cohort() {
       --min-mirna-reads "${COHORT_MIN_MIRNA_READS:-50}" --sig-q "${COHORT_SIG_Q:-0.1}" \
       ${COHORT_TERM_NAMES:+--term-names "$COHORT_TERM_NAMES"} \
       --nmds "${COHORT_NMDS-genus,fn_kegg_pathway,mirna,rfam_family}" --nmds-starts "${COHORT_NMDS_STARTS:-10}" \
-      ${COHORT_MODEL:+--model "$COHORT_MODEL"} \
+      ${COHORT_MODEL:+--model "$COHORT_MODEL"} ${COHORT_MODEL_NOTES:+--model-notes "$COHORT_MODEL_NOTES"} --cohort-name "${COHORT_NAME:-cohort}" \
       ${COHORT_BLOCK:+--block "$COHORT_BLOCK"} ${COHORT_REFERENCE:+--reference "$COHORT_REFERENCE"} \
       ${REPORT_MIRNA_MARKERS:+--mirna-markers "$REPORT_MIRNA_MARKERS"} \
       --permutations "${COHORT_PERMUTATIONS:-999}" ${REPORT_HTML:+--html} \
