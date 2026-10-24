@@ -15,3 +15,7 @@ remove_sections:
   - fastqc_top_overrepresented_sequences
   - fastqc_status_checks
 max_table_rows: 2000
+# raw-read FastQC (cutadapt has the raw numbers): sample names after the renaming above
+sample_names_ignore:
+  - '*.raw_sRNA-*'
+  - '*.raw'

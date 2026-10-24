@@ -2026,7 +2026,7 @@ run_cohort() {
     # raw-read FastQC left out (cutadapt has the raw numbers); config: one name per library, light sections
     local mqcfg=()
     [[ -s "$SCRIPTS_DIR/multiqc_cohort_config.yaml" ]] && mqcfg=(-c "$SCRIPTS_DIR/multiqc_cohort_config.yaml")
-    "$MULTIQC" -f -q --dirs --dirs-depth 3 -x '*.raw_fastqc.zip' ${mqcfg[@]+"${mqcfg[@]}"} \
+    "$MULTIQC" -f -q --dirs --dirs-depth 3 -x '*.raw_fastqc.zip' --ignore-samples '*.raw*' ${mqcfg[@]+"${mqcfg[@]}"} \
       -o "$CDIR/multiqc" -n multiqc_report.html "${dirs[@]}" \
       > "$L/multiqc.log" 2>&1 && log "MultiQC report: $CDIR/multiqc/multiqc_report.html" \
       || warn "MultiQC failed (see $L/multiqc.log)"

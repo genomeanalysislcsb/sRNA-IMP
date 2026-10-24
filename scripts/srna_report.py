@@ -1968,7 +1968,8 @@ def write_mqc(mqc_dir, sample, td):
     os.makedirs(mqc_dir, exist_ok=True)
     gs = os.path.join(mqc_dir, "%s_srna_general_stats_mqc.tsv" % sample)
     with open(gs, "w") as out:
-        out.write("# plot_type: 'generalstats'\n# pconfig:\n")
+        # one id for all samples: otherwise MultiQC makes a separate column set per file (179 x columns)
+        out.write("# id: 'srna_general_stats'\n# section_name: 'sRNA-IMP'\n# plot_type: 'generalstats'\n# pconfig:\n")
         out.write("Sample\tsrna_raw\tsrna_trimmed_pct\tsrna_human_pct\tsrna_nonhuman_rRNA_pct\tsrna_tRNA_pct\t"
                   "srna_mapped_assembly_pct\tsrna_novel_loci\tsrna_lRNA_RIN\tsrna_qc\n")
         for d in td:
