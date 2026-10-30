@@ -2,7 +2,7 @@
 # srna_status.sh — check which rows of a run are finished, running or failed, and resubmit the failed ones
 #
 # Usage: srna_status.sh -s samples.tsv -o outdir [options] [-- extra options for submit_srna_pipeline.sh]
-#   -m LIST       modules expected per row          [qc,contam,prep,split,human,nonhuman,assembly,novel,fragments,bins,crispr]
+#   -m LIST       modules expected per row          [qc,contam,prep,split,human,nonhuman,mirna_origin,assembly,novel,fragments,bins,crispr]
 #   -J NAME       SLURM job name of the run (to detect running/pending tasks; as -J of submit)  [sRNA]
 #   -v            list every row (default: only rows that are not complete)
 #   --resubmit    resubmit the failed rows (submit_srna_pipeline.sh --rows ... --no-compare); queued / running rows are
@@ -16,7 +16,7 @@ set -euo pipefail
 DIR=$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")
 usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
-SAMPLES="" OUTDIR="" MODULES="qc,contam,prep,split,human,nonhuman,assembly,novel,fragments,bins,crispr"
+SAMPLES="" OUTDIR="" MODULES="qc,contam,prep,split,human,nonhuman,mirna_origin,assembly,novel,fragments,bins,crispr"
 JOB="sRNA" VERBOSE=0 RESUB=0 DRY=0 EXTRA=()
 while [[ $# -gt 0 ]]; do
   case $1 in

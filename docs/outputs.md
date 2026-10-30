@@ -49,6 +49,8 @@ types of a sample.
 | nonhuman | `nonhuman/trna/<s>.trna_{aa,anticodon,species,phylum_class}.counts.tsv` | microbial tRNA hits |
 | nonhuman | `nonhuman/rrna_tax/<s>.rRNA.kraken.report`, `.kraken.min10.report`, `.bracken.<rank>.tsv` | rRNA taxonomy |
 | nonhuman | `nonhuman/trna/*.counts.tsv`, `rfam/*.counts.tsv`, `mirna_like/*.counts.tsv` | class counts |
+| mirna_origin | `nonhuman/mirna_like/<s>.mirna_like.{summary,families,sequences}.tsv` | origin of the miRNA-like reads: contig_only / human_only / both / neither, per family and sequence |
+| mirna_origin | `nonhuman/mirna_like/<s>.mirna_like.human.counts.tsv`, `.human_rescue.tsv` | clearly human miRNA-like reads per human miRNA, and totals / lengths; added to the human statistics by report, QC and cohort (`MIRNA_HUMAN_RESCUE=1`) |
 | assembly | `Analysis/<type>/assembly/<s>.bam` (+ `.bai`) | the one mapping of the non-human reads on the contigs (NH tag), used by novel, fragments, bins |
 | assembly | `assembly/<s>.{feature,category,contig}_counts.tsv` | reads per feature (sense / antisense, gene, product), category, contig |
 | assembly | `assembly/<s>.functions.tsv`, `.length_dist.tsv`, `.mapping_summary.tsv` | reads per functional term of the CDS; read lengths mapped / unmapped; mapping numbers |
@@ -69,12 +71,13 @@ types of a sample.
 | --- | --- |
 | `raw` | raw reads |
 | `trimmed` | reads after cutadapt |
-| `below_host_min_len_20nt` | trimmed reads shorter than `HOST_MIN_LEN`, never human |
+| `below_host_min_len_20nt` | trimmed reads shorter than `HOST_MIN_LEN`, not host-filtered (report/cohort: minus the recovered human miRNAs) |
 | `host_genome_mapped` | reads aligned to the human genome under the length/mismatch rules |
 | `host_tx_mapped` | genome-unmapped reads aligned to the human transcriptome |
 | `host_rescued_by_assembly` | host hits that match the sample's contigs at least as well → non-human |
 | `human_total` | final human reads = genome + transcriptome − rescued |
 | `nonhuman` | trimmed − human_total |
+| `human_mirna_rescued` | (added by report / QC / cohort, not in the file) clearly human miRNA-like reads moved to `human_total` (module `mirna_origin`) |
 
 Example, BXXX2 sRNA-Int with the default settings (`HOST_MIN_LEN=20`, exact host matches):
 

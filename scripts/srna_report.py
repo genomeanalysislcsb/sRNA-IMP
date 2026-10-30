@@ -357,6 +357,59 @@ class TypeData:
                      for b in ("intergenic", "antisense_to_CDS")}
         self.rfam_tbl = self._tbl(os.path.join(an, "novel", "%s.candidates.rfam.tbl" % sample))
         self.mfe = self._rnafold(os.path.join(an, "novel", "%s.candidates.no_rfam.RNAfold.txt" % sample))
+        self.mirna_rescue = self._mirna_rescue(os.path.join(an, "nonhuman", "mirna_like", sample))
+
+    def _mirna_rescue(self, p):
+        """module mirna_origin: clearly human miRNA-like reads (identical to a human miRNA, exact in the human genome,
+        not on the contigs; mostly 18-19 nt isoforms below HOST_MIN_LEN) are moved from the non-human miRNA-like class
+        to the human statistics: read_stats (human_total, nonhuman, below_host_min_len_*), human summary, human miRNA
+        counts, human length distribution and the non-human summary. Returns the rescue table ({} = none)."""
+        resc = kv(p + ".mirna_like.human_rescue.tsv", "category", "reads")
+        x = resc.get("rescued_reads", 0.0)
+        if x <= 0:
+            return resc
+        short = resc.get("rescued_below_host_min_len", 0.0)
+        rs = self.read_stats
+        if rs:
+            rs["human_total"] = rs.get("human_total", 0.0) + x
+            rs["nonhuman"] = max(rs.get("nonhuman", 0.0) - x, 0.0)
+            for k in [k for k in rs if k.startswith("below_host_min_len_")]:
+                rs[k] = max(rs[k] - short, 0.0)
+            rs["human_mirna_rescued"] = x
+        for k in ("human_reads", "human_miRNA"):
+            if k in self.human:
+                self.human[k] += x
+        nh = self.nonhuman
+        for k in ("input_reads", "non_rRNA_reads", "non_rRNA_collapsed_reads", "miRNA_like"):
+            if k in nh:
+                nh[k] = max(nh[k] - x, 0.0)
+        add = {r["feature"]: num(r["count"]) for r in read_tsv(p + ".mirna_like.human.counts.tsv")}
+        if add:
+            seen = set()
+            for r in self.mirna:
+                if r.get("feature") in add:
+                    r["count"] = "%.2f" % (num(r.get("count")) + add[r["feature"]])
+                    seen.add(r["feature"])
+            cols = list(self.mirna[0]) if self.mirna else ["feature", "count"]
+            for f, v in add.items():
+                if f not in seen:
+                    r = {c: "" for c in cols}
+                    r.update(feature=f, count="%.2f" % v)
+                    self.mirna.append(r)
+        lens = {int(k[7:]): v for k, v in resc.items() if k.startswith("length_") and k[7:].isdigit()}
+        if lens and self.hlen:
+            lc = [c for c in self.hlen[0] if c != "length"]
+            byl = {int(num(r.get("length"))): r for r in self.hlen}
+            for l, v in lens.items():
+                if l in byl:
+                    for c in lc:
+                        byl[l][c] = "%g" % (num(byl[l][c]) + v)
+                else:
+                    r = {"length": str(l)}
+                    r.update({c: "%g" % v for c in lc})
+                    self.hlen.append(r)
+            self.hlen.sort(key=lambda r: num(r.get("length")))
+        return resc
 
     @staticmethod
     def _rows(path):
@@ -463,9 +516,11 @@ def page_overview(pdf, sample, td, outdir):
     line("raw reads", raw)
     line("after trimming", lambda d: d.rs("trimmed"), rel=raw)
     line("adapter dimers (raw)", lambda d: d.qc.get("adapter_dimers_raw"), rel=raw)
-    line("< 20 nt (never human)", lambda d: d.rs("below_host_min_len_20nt"), rel=lambda d: d.rs("trimmed"))
+    line("< 20 nt (not host-filtered, non-human)", lambda d: d.rs("below_host_min_len_20nt"), rel=lambda d: d.rs("trimmed"))
     line("human", lambda d: d.rs("human_total"), rel=lambda d: d.rs("trimmed"))
     line("  rescued by assembly", lambda d: d.rs("host_rescued_by_assembly"))
+    if any(d.rs("human_mirna_rescued") for d in td):
+        line("  incl. human miRNAs from miRNA-like", lambda d: d.rs("human_mirna_rescued"))
     line("non-human", lambda d: d.rs("nonhuman"), rel=lambda d: d.rs("trimmed"))
     nh = lambda k: (lambda d: d.nonhuman.get(k))
     line("  rRNA (RiboDetector)", nh("rRNA_reads"), rel=lambda d: d.rs("nonhuman"))
@@ -558,11 +613,12 @@ def page_qc_verdict(pdf, sample, td):
         m, lv, hits = res[d.t]
         x0 = 0.03 + i * (0.94 / n)
         w = 0.94 / n - 0.02
-        fig.text(x0, 0.795, "%s:" % d.t, fontsize=11, fontweight="bold", va="top")
-        fig.text(x0 + 0.09, 0.795, " %s " % lv, fontsize=11, fontweight="bold", va="top", color="white",
+        fig.text(x0, 0.835, "%s:" % d.t, fontsize=11, fontweight="bold", va="top")
+        fig.text(x0 + 0.09, 0.835, " %s " % lv, fontsize=11, fontweight="bold", va="top", color="white",
                  bbox=dict(boxstyle="round,pad=0.3", fc=Q.LEVEL_COLOR[lv], ec="none"))
-        ax = fig.add_axes([x0, 0.52, w, 0.24])
-        rows = [[h[1], h[0], R_short(h[5], 60), "" if not h[3] else "%s %s %s" % (_fmtv(h[2]), h[3], h[4])]
+        ax = fig.add_axes([x0, 0.56, w, 0.21])
+        rows = [[h[1], h[0], R_short(h[5], 60),
+                 "" if not h[3] else R_short("%s %s %s" % (_fmtv(h[2]), h[3], h[4]), 18)]
                 for h in hits]
         table(ax, rows or [["PASS", "-", "no rule triggered", ""]], ["level", "rule", "reason", "value"],
               fontsize=6.5, left=(0, 1, 2), col_widths=[0.11, 0.17, 0.50, 0.22], title="triggered rules")
@@ -570,7 +626,7 @@ def page_qc_verdict(pdf, sample, td):
             if r > 0 and c == 0:
                 cell.set_facecolor(Q.LEVEL_COLOR.get(cell.get_text().get_text(), "#ffffff") + "55")
     # FastQC module grid
-    ax = fig.add_axes([0.22, 0.06, 0.55, 0.40])
+    ax = fig.add_axes([0.22, 0.06, 0.55, 0.44])
     cols = [(d.t, st) for d in td for st in ("raw", "trimmed")]
     any_ = False
     for j, (t, st) in enumerate(cols):
@@ -2073,9 +2129,14 @@ def main():
     if a.types:
         types = [t for t in a.types.split(",") if t]
     else:
-        types = sorted({os.path.basename(p) for p in glob.glob(os.path.join(base, "Stats", "*")) if os.path.isdir(p)} |
-                       {os.path.basename(p) for p in glob.glob(os.path.join(base, "Analysis", "*"))
-                        if os.path.isdir(p) and os.path.basename(p) not in ("annotation", "comparison")},
+        # sRNA library types only: metaT / metaG directories (e.g. written by the chimera module for the metaT
+        # reads) are comparison sources, not libraries of this report
+        types = sorted({t for t in
+                        {os.path.basename(p) for p in glob.glob(os.path.join(base, "Stats", "*")) if os.path.isdir(p)} |
+                        {os.path.basename(p) for p in glob.glob(os.path.join(base, "Analysis", "*")) if os.path.isdir(p)}
+                        if t not in ("annotation", "comparison", "metaT", "metaG")
+                        and (os.path.isdir(os.path.join(base, "Stats", t))
+                             or os.path.isdir(os.path.join(base, "Preprocessing", t)))},
                        key=_src_order)
     if not types:
         sys.exit("[report] %s: no sRNA types found" % a.sample)

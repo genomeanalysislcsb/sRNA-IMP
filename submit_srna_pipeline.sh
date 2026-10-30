@@ -18,7 +18,7 @@ Pipeline options (passed to srna_pipeline.sh):
   -s, --samples FILE     sample sheet                                  (required)
   -o, --outdir DIR       base output directory                         (required)
   -c, --config FILE      config file          [$SCRIPT_DIR/srna_pipeline.config.sh]
-  -m, --modules LIST     modules              [qc,contam,prep,split,human,nonhuman,assembly,novel,fragments,bins,crispr]
+  -m, --modules LIST     modules              [qc,contam,prep,split,human,nonhuman,mirna_origin,assembly,novel,fragments,bins,crispr]
   -f, --force            re-run finished modules
   -e, --env ENV          conda/micromamba env activated in the job   [ENV_DEFAULT from config = gut_srna_pipeline]
       --no-compare       do not submit the comparison + report job after the array
@@ -43,7 +43,7 @@ EOF
 }
 
 SAMPLES=""; OUTDIR=""; CONFIG="$SCRIPT_DIR/srna_pipeline.config.sh"
-MODULES="qc,contam,prep,split,human,nonhuman,assembly,novel,fragments,bins,crispr"; FORCE=""
+MODULES="qc,contam,prep,split,human,nonhuman,mirna_origin,assembly,novel,fragments,bins,crispr"; FORCE=""
 DO_COMPARE=1; COMPARE_ONLY=0
 CPUS=16; TIME="2-00:00:00"; MEM=""; PARTITION="batch"; QOS="normal"; ACCOUNT=""
 ENVNAME=""; JOBNAME="sRNA"; ROWS=""; MAXPAR=20; MAIL=""; DRYRUN=0

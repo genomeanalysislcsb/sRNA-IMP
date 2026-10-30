@@ -5,7 +5,7 @@ Example (Tarallo et al. 2019, mSystems; sRNA-seq GSE132236, shotgun metaG SRP136
     python3 public_runtable.py --srna GSE132236 --metag SRP136711 --out tarallo2019
 
 Writes <out>.srna.tsv, <out>.metag.tsv (all ENA fields), <out>.pairs.tsv (proposed pairing,
-check it!) and <out>.download.sh (wget of the FASTQ files from ENA).
+check it!) and <out>.download.sh (wget of the sRNA runs and the paired metaG runs from ENA).
 Run on a node with internet access (the HPC access node).
 """
 import argparse, csv, io, json, os, re, sys, urllib.parse, urllib.request
@@ -115,9 +115,13 @@ def main():
             fh.write("\t".join([k, r["run_accession"], r["sample_alias"], r["sample_title"],
                                 ",".join(x["run_accession"] for x in m), m[0]["sample_alias"] if m else "",
                                 m[0]["sample_title"] if m else ""]) + "\n")
+    # downloads: the sRNA runs and only the metaG runs paired with them (the metaG study may hold more samples);
+    # public_prepare.py writes the final download.sh with files named by sample ID
+    paired = {x for r in s for x in [y["run_accession"] for y in gk.get(key(r, a.pair_regex), [])]}
     with open(a.out + ".download.sh", "w") as fh:
-        fh.write("#!/bin/bash\n# FASTQ downloads from ENA (resumable: wget -c)\nset -e\nmkdir -p srna metag\n")
-        for sub, rows in (("srna", s), ("metag", g)):
+        fh.write("#!/bin/bash\n# FASTQ downloads from ENA (resumable: wget -c); metaG: paired runs only\nset -e\n"
+                 "mkdir -p srna metag\n")
+        for sub, rows in (("srna", s), ("metag", [r for r in g if r["run_accession"] in paired])):
             for r in rows:
                 for u in filter(None, (r.get("fastq_ftp") or "").split(";")):
                     fh.write("wget -c -q -P %s https://%s\n" % (sub, u))

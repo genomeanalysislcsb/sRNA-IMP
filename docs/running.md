@@ -68,9 +68,10 @@ the affected module **and everything after it** with `-f`:
 
 | change | re-run |
 | --- | --- |
-| adapter, quality, `MINLEN`/`MAXLEN` | `-m qc,contam,split,human,nonhuman,assembly,novel,fragments,bins -f` (all except prep) |
-| host rules (`HOST_*`) | `-m split,human,nonhuman,assembly,novel,fragments,bins -f` |
-| Kraken/Bracken settings | `-m nonhuman -f` |
+| adapter, quality, `MINLEN`/`MAXLEN` | `-m qc,contam,split,human,nonhuman,mirna_origin,assembly,novel,fragments,bins -f` (all except prep) |
+| host rules (`HOST_*`) | `-m split,human,nonhuman,mirna_origin,assembly,novel,fragments,bins -f` |
+| Kraken/Bracken settings | `-m nonhuman,mirna_origin -f` |
+| miRNA origin / human rescue (`MIRNA_*`) | `-m mirna_origin -f`, then `--report` / `--cohort` again |
 | fragment/bin parameters | `-m fragments,bins -f` |
 
 `prep` depends only on contigs and annotation and never needs to be repeated for read-level changes.

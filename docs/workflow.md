@@ -2,7 +2,7 @@
 
 Modules run per sample-sheet row, always in this order (whatever order `-m` lists them in):
 
-`qc → contam → prep → split → human → nonhuman → assembly → novel → fragments → bins → crispr` (optional: `chimera`), and per sample
+`qc → contam → prep → split → human → nonhuman → mirna_origin → assembly → novel → fragments → bins → crispr` (optional: `chimera`), and per sample
 afterwards `--compare`.
 
 ```mermaid
@@ -17,6 +17,8 @@ flowchart TD
   split -->|non-human| N[(non-human reads)]
   H --> human[human: miRNA → tRNA → rRNA → other]
   N --> nonhuman[nonhuman: RiboDetector, Kraken2/Bracken,<br/>tRNA → miRNA-like → Rfam]
+  nonhuman --> mirna_origin["mirna_origin: miRNA-like reads vs<br/>human genome / own contigs"]
+  mirna_origin -.->|clearly human miRNAs| H
   N --> assembly["assembly: bowtie on contigs → BAM (NH),<br/>feature / function counts"]
   assembly -->|BAM| novel[novel: clusters, ARAGORN, cmscan, RNAfold]
   assembly -->|BAM| fragments[fragments: tRNA / rRNA fragment classes]
@@ -74,7 +76,8 @@ Shared by all types of a sample and protected by a lock.
 The trimmed reads are split into **human** and **non-human** reads. The exact rule is given in
 [Read definitions](definitions.md#human-read); in short:
 
-1. reads shorter than `HOST_MIN_LEN` (20 nt) are never human;
+1. reads shorter than `HOST_MIN_LEN` (20 nt) are not tested here (too many random hits); the clearly human
+   miRNAs among them are recovered later by module `mirna_origin`;
 2. bowtie 1 end-to-end against the human genome, `-k 1 --best`, `-v HOST_SHORT_MISMATCHES` (0) for reads
    < `HOST_SHORT_LEN` (22 nt), `-v HOST_MISMATCHES` (default 0, i.e. exact matches at every length) for
    longer reads;
@@ -114,6 +117,17 @@ to each). `summarize_human_subtree.py` writes the summary table per class.
 6. everything left (miRNA-unmatched 18–26 nt + all > 26 nt) → **Rfam classes**: bowtie `-v 1 -k 1 --fullref` (the full reference header, with spaces, is needed to parse class, family and taxon);
    counts per class, taxon, family and accession.
 7. remaining sequences = **unknown** (`nonhuman/unknown/<sample>.unknown.fa`).
+
+## 6b. mirna_origin — where do the miRNA-like reads come from?
+
+`srna_mirna_like.py` maps every distinct miRNA-like sequence (bowtie 1, exact by default,
+`MIRNA_ORIGIN_MISMATCHES=0`) against all miRBase mature miRNAs, the human mature miRNAs, the human genome and the
+sample's own contigs, and calls an origin per sequence: `contig_only` (microbial support), `human_only`, `both`,
+`neither` (diet / other eukaryotes / isomiRs). Sequences that are **clearly human** — identical to a human mature
+miRNA, exact in the human genome and not on the contigs — are written as human rescue tables
+(`MIRNA_HUMAN_RESCUE=1`); report, QC and cohort then count them as human (see
+[definitions](definitions.md#human-mirnas-recovered-from-the-mirna-like-class)). Takes seconds per library; needs the
+human genome and assembly bowtie indices (already built by `split`).
 
 ## 7. assembly — mapping on the sample's contigs
 

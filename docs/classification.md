@@ -69,6 +69,28 @@ Rfam-classified and unknown read counts.
     Bacteria have no miRNAs. `miRNA_like` only means that an 18–26-nt sequence is identical to a
     eukaryotic miRNA (diet, fungi, host contamination or coincidence) and should be interpreted with care.
 
+### Origin of the miRNA-like reads (module mirna_origin)
+
+Module `mirna_origin` maps every distinct miRNA-like sequence (exact, `MIRNA_ORIGIN_MISMATCHES=0`) to all miRBase
+mature miRNAs, the human mature miRNAs, the human genome and the sample's own contigs (`srna_mirna_like.py`) and
+assigns an origin:
+
+| origin | meaning |
+|---|---|
+| `contig_only` | on the sample's contigs, not in the human genome → support for a microbial origin (bin / GTDB taxon given) |
+| `human_only` | in the human genome, not on the contigs → probably human (mostly isoforms < `HOST_MIN_LEN`, e.g. miR-1246 at 19 nt) |
+| `both` | in both → ambiguous |
+| `neither` | in neither → diet (plant miRNAs), other eukaryotes, human isomiRs with a 3′ non-templated nucleotide |
+
+Each sequence also gets its miRBase family (`miR-192`, plant `miR166`, …), the miRNAs and species it is identical to,
+and the nearest human miRNA (≤ 1 mismatch). An 18–19 nt sequence still has a ~5–10 % chance of a random exact hit in
+the human genome, so single short `human_only` / `both` calls are weak evidence; read the family table.
+
+`human_only` sequences that are also identical to a human mature miRNA are counted as **human** in report, QC and
+cohort (`MIRNA_HUMAN_RESCUE=1`, see [definitions](definitions.md#human-mirnas-recovered-from-the-mirna-like-class)).
+BHC01: sRNA-Int 96 sequences / 915 reads — 749 in the human genome only, of which 744 identical to a human miRNA and counted as human (miR-1246, let-7, miR-192/194, miR-21, …), 166 neither
+(plant miRNAs, human isomiRs), none on the contigs; sRNA-Ext 3 reads, all miR-1246.
+
 ## Reads on the sample's contigs
 
 ### assembly and bins modules

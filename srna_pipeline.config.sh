@@ -113,6 +113,10 @@ RFAM_FAMILY_TXT=/work/projects/imp/db/smallRNA/rfam/family.txt.gz   # Rfam famil
 
 MIRNA_LIKE_MINLEN=18
 MIRNA_LIKE_MAXLEN=26
+# module mirna_origin: origin of the miRNA-like reads (miRBase family, human miRNAs, human genome, own contigs)
+MIRNA_ORIGIN_MISMATCHES=0     # mismatches for the human genome / contig matching (keep 0: short reads hit by chance)
+MIRNA_HUMAN_RESCUE=1          # 1 = clearly human miRNA-like reads (identical to a human miRNA, exact in the human
+                              #     genome, not on the contigs) count as human in report, QC and cohort
 
 # Kraken2 / Bracken on rRNA reads (settings from runKraken.sh)
 #KRAKEN_DB=/work/projects/imp/db/imp3/k2_core_nt_20250609

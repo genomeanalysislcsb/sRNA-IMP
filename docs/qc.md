@@ -106,15 +106,16 @@ it still catches identical sequences.
   are reads without adapter (insert ≥ read length).
 * In sRNA-Ext a third of the host hits also match the sample's contigs exactly — conserved rRNA/tRNA
   fragments, which dominate extracellular RNA. The assembly check is therefore essential for this fraction.
-* `HOST_MIN_LEN=20` loses no human miRNAs: the `miRNA_like` class of the non-human reads (which compares
-  against eukaryotic miRNAs incl. human) contains **no** `hsa-` miRNA in BXXX2 sRNA-Ext.
+* `HOST_MIN_LEN=20` leaves human miRNA isoforms < 20 nt in the non-human reads (`miRNA_like`); module
+  `mirna_origin` recovers the clearly human ones and report, QC and cohort count them as human
+  (`MIRNA_HUMAN_RESCUE=1`). In BHC01 sRNA-Int these were 744 reads, < 0.01 % of the trimmed reads.
 
 !!! tip "Check for every new data set"
     ```bash
-    grep -i "hsa-" <outdir>/<sample>/Analysis/<type>/nonhuman/mirna_like/<sample>.mirna_like.counts.tsv
+    cat <outdir>/<sample>/Analysis/<type>/nonhuman/mirna_like/<sample>.mirna_like.summary.tsv
     ```
-    Clear `hsa-` counts there would mean human miRNA isoforms < 20 nt are being counted as non-human; then
-    lower `HOST_MIN_LEN` to 19 (an exact 19-nt match happens by chance for about 2 % of random reads).
+    `contig_only` reads would be miRNA-like sequences encoded in the sample's own contigs (worth a look);
+    a large `human_only` share with many reads would argue for lowering `HOST_MIN_LEN`.
 
 ## Environment problems
 

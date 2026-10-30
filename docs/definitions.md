@@ -40,6 +40,24 @@ Bowtie 1 reports one best alignment per read (`-k 1 --best`); the mismatch count
 `*.human.fastq.gz` contains all human reads; `*.human.rmDup.fastq.gz` the same reads with duplicate read
 names removed (input of the `human` module).
 
+### Human miRNAs recovered from the miRNA-like class
+
+Rule 1 keeps human miRNA isoforms shorter than 20 nt (e.g. miR-1246 at 18–19 nt, 3′-shortened let-7, miR-192,
+miR-21) in the non-human reads, where they end up as `miRNA_like`. Module `mirna_origin` moves them back: a
+miRNA-like sequence counts as human if it is
+
+* identical to a human mature miRNA (miRBase, `IDX_HSA_MIRNA`),
+* exact in the human genome, and
+* not found in the sample's own contigs.
+
+With `MIRNA_HUMAN_RESCUE=1` (default) these reads are added, when the report, QC and cohort read the tables, to
+`human_total`, `human_reads` / `human_miRNA`, the human miRNA counts (split equally over identical human
+miRNAs, e.g. let-7a / let-7c) and the human length distribution, and removed from `nonhuman`, the non-human
+summary (`input_reads`, `non_rRNA_reads`, `miRNA_like`) and `below_host_min_len_*`. The files written by the
+modules themselves are not changed; `read_stats` gets the extra key `human_mirna_rescued`. In BHC01 sRNA-Int these
+are 744 reads (37 sequences, < 0.01 % of the trimmed reads; 5 more `human_only` reads match the human genome but no human mature miRNA and stay non-human); miRNA-like sequences one mismatch from a human
+miRNA (3′ non-templated isomiRs) and plant miRNAs stay non-human.
+
 ### Why the length rules?
 
 A read that is *random* with respect to the human genome still matches it somewhere by chance if it is

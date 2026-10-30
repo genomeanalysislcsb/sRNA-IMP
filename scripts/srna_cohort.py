@@ -1761,8 +1761,9 @@ EXPLAIN.update({
         "Each model asks one question, given by its first term (term of interest): the group contrasts, or e.g. stool "
         "consistency, a medication or a clinical score. The other terms are adjustments. A subset restricts the model "
         "to some samples (e.g. PD only). Numeric terms are per standard deviation. Models need ≥ 20 complete "
-        "libraries and ≥ 3 per level; 'design notes' list levels or terms that were dropped. Add a question text per "
-        "model with --model-notes / COHORT_MODEL_NOTES ('M9=PD motor severity; …').",
+        "libraries and ≥ 3 per level; 'dropped (design check)' lists levels or terms removed for too few samples "
+        "('none' = full model). The question comes from COHORT_MODEL_NOTES ('M9=PD motor severity; …') or is "
+        "generated from the formula.",
     "highlights_crispr_group":
         "CRISPR systems that are expressed in one group only, or much more often than in the other groups. Expression "
         "needs the host taxon: a group-specific system usually reflects a strain or species that is more common in that "
@@ -2516,7 +2517,7 @@ def page_models_overview(pdf, C):
                                                   fmt(q, 2)) for q, w, r in best[:2])
                 subset = C.model_subset(mi)
                 rows.append(["%s%s" % (C.model_label(mi), " [%s]" % "/".join(sorted(subset[1])) if subset else ""),
-                             t.replace("sRNA-", ""), R.short(gt.replace("%s: " % C.group_col, ""), 34),
+                             t.replace("sRNA-", ""), R.short(gt.replace("%s: " % C.group_col, "").replace(" (per SD", " (SD"), 26),
                              str(len(md[0]))] + cells + [top or "–"])
                 flags.append(bool(best))
     if not rows:
@@ -3161,13 +3162,13 @@ def page_models_intro(pdf, C):
             md = C.model_data(t, mi)
             libs.append(str(len(md[0])) if md else "–")
         info = "; ".join(sorted({x for t in C.types for x in ((C.model_data(t, mi) or [None] * 5)[4] or [])}))
-        rows.append([lab, R.short(note or desc, 70), focus, R.short(kind, 22), R.short(adj, 40), subset] + libs +
-                    [R.short(info or "–", 40)])
+        rows.append([lab, R.short(note or desc, 72), focus, R.short(kind, 20), R.short(adj, 34), subset] + libs +
+                    [R.short(info or "none", 30)])
     ax = fig.add_axes([0.02, 0.06, 0.95, 0.80])
-    R.table(ax, rows, ["model", "question", "term of interest", "kind", "adjusted for", "samples"] +
-            ["n %s" % t.replace("sRNA-", "") for t in C.types] + ["design notes"], fontsize=6.2,
-            left=(0, 1, 2, 3, 4, 5, 6 + len(C.types)), rowscale=1.25,
-            col_widths=[0.05, 0.25, 0.1, 0.1, 0.17, 0.08] + [0.04] * len(C.types) + [0.17 - 0.04 * (len(C.types) - 2)])
+    R.table(ax, rows, ["model", "question (COHORT_MODEL_NOTES or generated)", "term of interest", "kind",
+                       "adjusted for", "samples"] + ["n %s" % t.replace("sRNA-", "") for t in C.types] +
+            ["dropped (design check)"], fontsize=6.2, left=(0, 1, 2, 3, 4, 5, 6 + len(C.types)), rowscale=1.25,
+            col_widths=[0.04, 0.33, 0.1, 0.09, 0.16, 0.07] + [0.035] * len(C.types) + [0.14 - 0.035 * (len(C.types) - 2)])
     pdf.savefig(fig)
     plt.close(fig)
     return True

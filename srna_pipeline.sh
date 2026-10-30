@@ -67,9 +67,9 @@ set -euo pipefail
 SCRIPT_PATH=$(readlink -f "${BASH_SOURCE[0]}")
 PIPELINE_DIR=$(dirname "$SCRIPT_PATH")
 
-ALL_MODULES="qc,contam,prep,split,human,nonhuman,assembly,novel,fragments,bins,crispr,chimera"
+ALL_MODULES="qc,contam,prep,split,human,nonhuman,mirna_origin,assembly,novel,fragments,bins,crispr,chimera"
 # default run: all modules except the exploratory ones (run those with -m, e.g. -m chimera)
-DEFAULT_MODULES="qc,contam,prep,split,human,nonhuman,assembly,novel,fragments,bins,crispr"
+DEFAULT_MODULES="qc,contam,prep,split,human,nonhuman,mirna_origin,assembly,novel,fragments,bins,crispr"
 
 usage() {
 cat <<EOF
@@ -906,6 +906,36 @@ module_nonhuman() {
 }
 
 # ==================================================================
+# MODULE: mirna_origin — origin of the miRNA-like reads (module nonhuman): miRBase family, identical human
+#   miRNAs, exact matches in the human genome and in the sample's own contigs (contig_only = support for a
+#   microbial origin). Clearly human sequences (identical to a human miRNA, exact in the human genome, not on the
+#   contigs; mostly 18-19 nt isoforms below HOST_MIN_LEN) are written as human rescue tables, which the report,
+#   QC and cohort add to the human statistics (MIRNA_HUMAN_RESCUE=1). Takes seconds.
+# ==================================================================
+module_mirna_origin() {
+  need bowtie bowtie-build python3
+  local L=$LOGDIR/mirna_origin MD=$NONHUMANDIR/mirna_like
+  mkdir -p "$L" "$MD"
+  local MH=$MD/$PREFIX.mirna_like.hits.txt
+  [[ -e "$MH" ]] || die "missing $MH — run module nonhuman first"
+  [[ -s "$ASSEMBLY.gz" ]] || die "missing $ASSEMBLY.gz — run module prep first"
+  ensure_assembly_bowtie_index
+  ensure_host_index "$HOST_GENOME_FA" "${HOST_GENOME_IDX:-}" "host genome"
+  local mo=()
+  [[ -n "${IN_BINS:-}" ]] && mo+=(--contig2bin "$IN_BINS")
+  [[ -n "${IN_GTDB:-}" ]] && mo+=(--gtdbtk "$IN_GTDB")
+  log "origin of the miRNA-like reads (miRBase / human miRNAs / human genome / contigs) ..."
+  python3 "$SCRIPTS_DIR/srna_mirna_like.py" --hits "$MH" --mirbase-idx "$IDX_MIRNA_EUK" \
+    --hsa-mirna-idx "$IDX_HSA_MIRNA" --host-idx "$HOST_IDX" --assembly-idx "$ASSEMBLY" \
+    --mismatches "${MIRNA_ORIGIN_MISMATCHES:-0}" --threads "$THREADS" ${mo[@]+"${mo[@]}"} \
+    --host-min-len "${HOST_MIN_LEN:-20}" --human-rescue "${MIRNA_HUMAN_RESCUE:-1}" \
+    --out-prefix "$MD/$PREFIX" 2> "$L/$PREFIX.mirna_origin.log" \
+    || die "srna_mirna_like.py failed (see $L/$PREFIX.mirna_origin.log)"
+  sed 's/^/    | /' "$L/$PREFIX.mirna_origin.log"
+  log "miRNA-like origin: $MD/$PREFIX.mirna_like.{summary,families,sequences}.tsv"
+}
+
+# ==================================================================
 # MODULE: assembly — map non-human reads on contigs, weight multi-
 #                    mappers (CMC), intersect with annotation, counts
 # ==================================================================
@@ -959,6 +989,7 @@ module_assembly() {
   [[ -s "$ASSEMBLY.gz" && -s "$GBED" ]] || die "missing assembly/annotation — run module prep first"
   make_tempdir
   local P=$ASMDIR/$PREFIX BAM=$ASMDIR/$PREFIX.bam
+  local mm=${ASSEMBLY_MISMATCHES:-${NOVEL_MISMATCHES:-1}}
 
   if [[ "${ASSEMBLY_RECOUNT_ONLY:-0}" == 1 && -s "$BAM" && -s "$L/bowtie.log" ]]; then
     log "ASSEMBLY_RECOUNT_ONLY=1: keeping the existing mapping ($BAM), recounting only"
@@ -975,7 +1006,7 @@ module_assembly() {
     # uncollapsed non-human reads, bowtie -v <mm> --best --strata and either all hits (-a) or at most
     # ASSEMBLY_MAX_HITS hits per read. All hits of a read are consecutive in bowtie's SAM output, so the
     # number of hits is added as NH:i:<n> on the fly; downstream tools weight each alignment 1/NH.
-    local mm=${ASSEMBLY_MISMATCHES:-${NOVEL_MISMATCHES:-1}} kopt=(-a)
+    local kopt=(-a)
     [[ "${ASSEMBLY_MAX_HITS:-0}" -gt 0 ]] && kopt=(-k "$ASSEMBLY_MAX_HITS")
     log "mapping non-human reads (bowtie -v $mm ${kopt[*]} --best --strata) ..."
     bowtie -v "$mm" "${kopt[@]}" --best --strata -S -p "$THREADS" "$ASSEMBLY" "$READS" 2> "$L/bowtie.log" \
@@ -1823,6 +1854,13 @@ chk_mod_nonhuman() {
 chk_mod_assembly() {
   chk_tool bowtie bowtie-build samtools python3
   chk_script srna_bins.py
+  return 0
+}
+chk_mod_mirna_origin() {
+  chk_tool bowtie bowtie-build python3
+  chk_script srna_mirna_like.py
+  chk_bt IDX_MIRNA_EUK "$IDX_MIRNA_EUK"
+  chk_bt IDX_HSA_MIRNA "$IDX_HSA_MIRNA"
   return 0
 }
 chk_mod_novel() {

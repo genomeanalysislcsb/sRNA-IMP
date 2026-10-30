@@ -18,6 +18,7 @@ flowchart TD
     prep["prep<br/>contigs + GFF"] --> split
     split -- human --> human["human<br/>miRNA / tRNA / rRNA / other"]
     split -- non-human --> nonhuman["nonhuman<br/>rRNA taxonomy, tRNA, miRNA-like, Rfam"]
+    nonhuman --> mirna_origin["mirna_origin<br/>miRNA-like: human / microbial?"]
     split -- non-human --> assembly["assembly<br/>bowtie on the sample's contigs"]
     assembly --> novel["novel<br/>novel ncRNA loci"]
     assembly --> fragments["fragments<br/>tRNA / rRNA fragments, integrity"]

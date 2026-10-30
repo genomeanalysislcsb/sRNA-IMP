@@ -60,7 +60,7 @@ ASSEMBLY_RECOUNT_ONLY=1 RRNA_EXCLUDE_RFAM=1 ./srna_pipeline.sh -s samples.tsv -o
 | `HOST_TX_FA` | T2T-CHM13v2.0 transcripts | human transcriptome (`''` = skip) |
 | `HOST_GENOME_IDX`, `HOST_TX_IDX` | `""` | existing bowtie index prefixes |
 | `HOST_INDEX_TMPDIR` | `<outdir>/tmp/host_index` | where indices are built if the FASTA directory is read-only |
-| `HOST_MIN_LEN` | 20 | reads shorter are never human |
+| `HOST_MIN_LEN` | 20 | shorter reads are not tested against human (clearly human miRNAs among them are recovered by `mirna_origin`) |
 | `HOST_SHORT_LEN` | 22 | reads shorter must match … |
 | `HOST_SHORT_MISMATCHES` | 0 | … with this many mismatches |
 | `HOST_MISMATCHES` | 0 | mismatches for reads ≥ `HOST_SHORT_LEN` (1 = more tolerant, more chance hits) |
@@ -80,6 +80,8 @@ ASSEMBLY_RECOUNT_ONLY=1 RRNA_EXCLUDE_RFAM=1 ./srna_pipeline.sh -s samples.tsv -o
 | `IDX_TRNA_ALL`, `IDX_MIRNA_EUK`, `IDX_RFAM_CLASSES`, `RFAMSEQ_TXT` | | class references (DNA alphabet: indexes without T are reported by the check) |
 | `RFAM_FAMILY_TXT` | `…/rfam/family.txt.gz` | Rfam `family.txt` of the same release; adds `rfam_type.counts.tsv` (rRNA, sRNA, snoRNA, riboswitch, …) and rfam_id/description/type to the family table; `""` = off |
 | `MIRNA_LIKE_MINLEN`, `MIRNA_LIKE_MAXLEN` | 18, 26 | length window of the miRNA-like search |
+| `MIRNA_ORIGIN_MISMATCHES` | 0 | module mirna_origin: mismatches for the human genome / contig matching of the miRNA-like sequences |
+| `MIRNA_HUMAN_RESCUE` | 1 | module mirna_origin: clearly human miRNA-like reads count as human in report, QC and cohort (0 = tables not written) |
 | `KRAKEN_DB`, `BRACKEN_DB` | GTDB genome reps 2025-06-09 | rRNA taxonomy |
 | `KRAKEN_CONF` | 0.5 | `--confidence` |
 | `KRAKEN_MINHITGROUPS` | 3 | `--minimum-hit-groups` |
