@@ -2,7 +2,7 @@
 
 sRNA-IMP analyses small-RNA sequencing data of microbiome samples. It takes **one raw
 single-end small-RNA FASTQ per sample** and **sRNA type**, removes adapters and low-quality bases, separates
-**human** from **microbial (non-human)** reads, and classifies both against curated small-RNA databases and against the [IMP3](https://imp3.readthedocs.io/en/latest/) **multi-omic metagenomic assembly** (contigs, annotation, bins) from the same sample.
+**human** from **microbial (non-human)** reads, and classifies both against curated small-RNA databases and against the [IMP3](https://genomeanalysislcsb.github.io/IMP3/) **multi-omic metagenomic assembly** (contigs, annotation, bins) from the same sample.
 
 The pipeline works on three levels: modules per sample-sheet row (one sRNA library), steps per sample
 (all its libraries together with metaT / metaG) and a cohort summary over all samples.
@@ -73,6 +73,13 @@ See [Cohort analysis](cohort.md) for the summary over all samples with the study
 !!! tip "Most important definitions"
     What the pipeline calls a *human* read, a *non-human* read or an *unknown* read is defined precisely
     in [Read definitions](definitions.md). Read this page before interpreting any numbers.
+
+## Related tools
+
+| tool | role |
+|---|---|
+| [IMP3](https://genomeanalysislcsb.github.io/IMP3/) ([GitHub](https://github.com/genomeanalysislcsb/IMP3)) | metagenomic + metatranscriptomic pipeline; provides the assembly, annotation, bins and metaT / metaG counts that sRNA-IMP uses |
+| [IMP explorer](https://genomeanalysislcsb.github.io/imp-explorer/) ([GitHub](https://github.com/genomeanalysislcsb/imp-explorer)) | study-level interactive exploration of IMP3 results (QC, taxonomy, MAGs, functions); sRNA results can be added as a study layer |
 
 ## Building this documentation
 

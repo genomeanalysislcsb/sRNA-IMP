@@ -1,7 +1,7 @@
 # sRNA-IMP
 
 **sRNA-IMP** is a modular pipeline for small-RNA sequencing (sRNA-seq) of microbiome samples, integrated with the
-metagenomic and metatranscriptomic analysis of the same samples by [IMP](https://imp3.readthedocs.io/en/latest/).
+metagenomic and metatranscriptomic analysis of the same samples by [IMP3](https://github.com/genomeanalysislcsb/IMP3).
 It processes intracellular (sRNA-Int) and extracellular (sRNA-Ext) libraries, separates human from microbial reads,
 classifies both against curated small-RNA databases, places the microbial small RNAs on the sample's own contigs,
 genes, bins and functions, compares them with metaT and metaG, and summarises a whole cohort with group statistics.
@@ -53,3 +53,8 @@ See [Installation](https://genomeanalysislcsb.github.io/sRNA-IMP/installation/),
 
 LCSB BioCore, University of Luxembourg. Please cite the repository and the tools listed in the automated Methods
 of your run. License: see [LICENSE](LICENSE).
+
+## Related tools
+
+- [IMP3](https://github.com/genomeanalysislcsb/IMP3) ([docs](https://genomeanalysislcsb.github.io/IMP3/)): the metagenomic and metatranscriptomic pipeline whose assembly, annotation and bins sRNA-IMP uses
+- [IMP explorer](https://github.com/genomeanalysislcsb/imp-explorer) ([docs](https://genomeanalysislcsb.github.io/imp-explorer/)): interactive study-level exploration of IMP3 results
