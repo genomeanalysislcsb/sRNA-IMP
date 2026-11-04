@@ -237,7 +237,7 @@ COHORT_MIN_MIRNA_READS="${COHORT_MIN_MIRNA_READS-50}"  # libraries with fewer hu
 COHORT_SIG_Q="${COHORT_SIG_Q-0.1}"           # FDR q below which results are bold / listed as key findings
 COHORT_TERM_NAMES="${COHORT_TERM_NAMES-}"   # optional TSVs term<TAB>name for readable KEGG / Pfam labels, comma-separated
                                # (e.g. KEGG REST list/ko, list/pathway, list/module; Pfam-A.clans.tsv)
-COHORT_NMDS="${COHORT_NMDS-genus,fn_kegg_pathway,mirna,rfam_family}"  # NMDS (Bray-Curtis) pages; also family, rna_class, fn_kegg_ko, fn_pfam; "" = none
+COHORT_NMDS="${COHORT_NMDS-genus,fn_kegg_pathway,mirna,rfam_family}"  # NMDS (Bray-Curtis) pages; also family, rna_class, fn_kegg_ko, fn_pfam; ALL = every profile (also every layer in imp-explorer cohort); "" = none
 COHORT_NMDS_STARTS="${COHORT_NMDS_STARTS-10}"   # random starts per NMDS (+ 1 PCoA start); ~30 s per NMDS for 180 libraries
 COHORT_NAME="${COHORT_NAME-cohort}"   # name of the cohort: title of the cohort report
 COHORT_MODEL="${COHORT_MODEL-}"   # covariate-adjusted models (OLS on CLR, HC3); several models comma-separated, terms joined by +,

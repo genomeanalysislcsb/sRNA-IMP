@@ -3330,7 +3330,7 @@ def main():
                     help="novel loci per library (most reads) used for the cross-sample novel sRNA clusters [300]; 0 = all")
     ap.add_argument("--nmds", default="genus,fn_kegg_pathway,mirna,rfam_family",
                     help="profiles for NMDS pages (genus, family, mirna, rfam_family, rna_class, fn_kegg_pathway, "
-                         "fn_kegg_ko, fn_pfam; '' = none)")
+                         "fn_kegg_ko, fn_pfam; ALL = all of them; '' = none)")
     ap.add_argument("--nmds-starts", type=int, default=10, help="random starts for NMDS (plus one PCoA start)")
     ap.add_argument("--term-names", default="", help="comma-separated TSVs term<TAB>name for KEGG / Pfam labels")
     ap.add_argument("--min-mirna-reads", type=float, default=50,
@@ -3347,6 +3347,8 @@ def main():
     ap.add_argument("--methods-envs", default="", help="environments for the tool versions (conda-meta)")
     ap.add_argument("--methods-resources", default="", help="resources TSV (default scripts/methods_resources.tsv)")
     a = ap.parse_args()
+    if a.nmds.strip().lower() in ("all", "*"):          # COHORT_NMDS=ALL: every profile with an NMDS page
+        a.nmds = ",".join(NMDS_LABELS)
     global COHORT_NAME
     COHORT_NAME = a.cohort_name or "cohort"
     if not a.metadata:

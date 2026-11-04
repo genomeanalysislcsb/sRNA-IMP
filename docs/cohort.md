@@ -65,7 +65,7 @@ One row per participant (TSV, CSV or XLSX; `metadata.template.tsv` is a template
 | `COHORT_COVARIATES` | `""` | covariate columns; empty = all other columns |
 | `COHORT_PERMUTATIONS` | `999` | PERMANOVA permutations |
 | `COHORT_MODEL` | `""` | covariate-adjusted models, comma-separated, terms joined by `+`, e.g. `group+site, group+site+sex+age` |
-| `COHORT_NMDS` / `COHORT_NMDS_STARTS` | `genus,fn_kegg_pathway,mirna,rfam_family` / `10` | profiles for NMDS pages, random starts |
+| `COHORT_NMDS` / `COHORT_NMDS_STARTS` | `genus,fn_kegg_pathway,mirna,rfam_family` / `10` | profiles for NMDS pages (`ALL` = genus, family, mirna, rfam_family, rna_class, fn_kegg_pathway, fn_kegg_ko, fn_pfam; about 30 s each per fraction), random starts. The same `COHORT_NMDS` read by `imp-explorer cohort` gives an NMDS of every layer there |
 | `COHORT_TERM_NAMES` | `""` | TSVs term → name for KEGG / Pfam labels |
 | `COHORT_MIN_MIRNA_READS` | `50` | minimum human miRNA reads of a library for the miRNA tests |
 | `COHORT_SIG_Q` | `0.1` | FDR threshold for bold / key findings |
