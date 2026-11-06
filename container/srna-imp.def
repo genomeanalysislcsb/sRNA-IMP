@@ -1,0 +1,74 @@
+Bootstrap: docker
+From: condaforge/miniforge3:24.11.3-0
+
+# sRNA-IMP container: the pipeline (Bash + Python helpers) and its four conda environments, built from envs/*.yml
+# (pinned versions). Build with container/build.sh from the repository root.
+
+%files
+    envs /opt/srna-imp/envs-yml
+    scripts /opt/srna-imp/scripts
+    srna_pipeline.sh /opt/srna-imp/srna_pipeline.sh
+    srna_pipeline.config.sh /opt/srna-imp/srna_pipeline.config.sh
+    srna_make_samples.sh /opt/srna-imp/srna_make_samples.sh
+    srna_status.sh /opt/srna-imp/srna_status.sh
+    srna_pack_summary.sh /opt/srna-imp/srna_pack_summary.sh
+    sample.template.tsv /opt/srna-imp/sample.template.tsv
+    metadata.template.tsv /opt/srna-imp/metadata.template.tsv
+    container/VERSION /opt/srna-imp/VERSION
+
+%post
+    set -e
+    export DEBIAN_FRONTEND=noninteractive
+    # sandbox user root: fakeroot builds cannot switch to apt's _apt user; separate commands so a failure stops
+    A="-o APT::Sandbox::User=root"
+    apt-get $A update
+    apt-get $A install -y --no-install-recommends procps less ca-certificates
+    rm -rf /var/lib/apt/lists/*
+    mkdir -p /opt/srna-imp/envs
+    for e in gut_srna_pipeline ncrna_discovery ribodetector multiqc; do
+        /opt/conda/bin/mamba env create -y -p /opt/srna-imp/envs/$e -f /opt/srna-imp/envs-yml/$e.yml
+    done
+    /opt/conda/bin/conda clean -a -y
+    chmod -R a+rX /opt/srna-imp
+    chmod a+x /opt/srna-imp/*.sh
+    # mount points of the site's file systems (MOUNTS of build.sh): Apptainer without overlay skips a bind whose
+    # destination does not exist in the image
+    mkdir -p /opt/srna-imp/mounts __MOUNTS__
+
+%environment
+    export LC_ALL=C.UTF-8 LANG=C.UTF-8
+    export SRNA_IMP_CONTAINER=1
+    export ENVS_DIR=/opt/srna-imp/envs
+    export ENV_DEFAULT=/opt/srna-imp/envs/gut_srna_pipeline
+    export ENV_NOVEL=/opt/srna-imp/envs/ncrna_discovery
+    export RIBO_DETECTOR_CPU=/opt/srna-imp/envs/ribodetector/bin/ribodetector_cpu
+    export MULTIQC=/opt/srna-imp/envs/multiqc/bin/multiqc
+    export SCRIPTS_DIR=/opt/srna-imp/scripts
+    export CONDA_SH=/opt/conda/etc/profile.d/conda.sh
+    export PATH=/opt/srna-imp:/opt/conda/bin:$PATH
+
+%runscript
+    exec bash /opt/srna-imp/srna_pipeline.sh "$@"
+
+%test
+    for t in cutadapt fastqc bowtie samtools seqkit kraken2 bracken gff2bed python3; do
+        test -x /opt/srna-imp/envs/gut_srna_pipeline/bin/$t || { echo "missing $t (gut_srna_pipeline)"; exit 1; }
+    done
+    for t in aragorn cmscan RNAfold bedtools samtools; do
+        test -x /opt/srna-imp/envs/ncrna_discovery/bin/$t || { echo "missing $t (ncrna_discovery)"; exit 1; }
+    done
+    test -x /opt/srna-imp/envs/ribodetector/bin/ribodetector_cpu
+    test -x /opt/srna-imp/envs/multiqc/bin/multiqc
+
+%labels
+    org.opencontainers.image.title sRNA-IMP
+    org.opencontainers.image.source https://github.com/genomeanalysislcsb/sRNA-IMP
+    org.opencontainers.image.version __VERSION__
+    srna-imp.mounts __MOUNTS__
+
+%help
+    sRNA-IMP with its environments. The image's run script is srna_pipeline.sh:
+      apptainer run --bind <data, databases, output> srna-imp.sif -s samples.tsv -o out -c my.config.sh -t 16
+    On Slurm: submit_srna_pipeline.sh --container srna-imp.sif --bind <folders> ...
+    The environments, SCRIPTS_DIR, RIBO_DETECTOR_CPU and MULTIQC are set by the image; a config with
+    VAR=${VAR:-...} defaults keeps them.

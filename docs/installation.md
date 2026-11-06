@@ -1,7 +1,7 @@
 # Installation & databases
 
 The pipeline is a set of Bash scripts plus Python helpers; there is nothing to compile. It needs three
-conda/micromamba environments (main, ncRNA discovery, RiboDetector), a set of reference databases, and the helper scripts in `SCRIPTS_DIR`.
+conda/micromamba environments (or the [container image](#container-apptainer)) (main, ncRNA discovery, RiboDetector), a set of reference databases, and the helper scripts in `SCRIPTS_DIR`.
 
 ## Environments
 
@@ -53,6 +53,43 @@ attempts:
 
 If activation fails the run stops with a message naming `MAMBA_BIN`, `CONDA_SH` and `ENV_MODULES`.
 `-e/--env` overrides `ENV_DEFAULT` for a single run.
+
+## Container (Apptainer)
+
+Instead of the three environments, one Apptainer/Singularity image holds the pipeline and all its environments
+(built from `envs/*.yml`, so the same pinned versions). Only Apptainer is needed on the host; the databases stay
+outside the image.
+
+```bash
+# build once (fakeroot or root), from the repository root
+MOUNTS="/work/projects /scratch/users /mnt/isilon" container/build.sh srna-imp.sif
+```
+
+`MOUNTS` are the top folders of the site's file systems. Apptainer installations without overlay (e.g. ULHPC) skip
+a bind whose destination does not exist in the image, so they must be created in it; elsewhere leave `MOUNTS`
+empty.
+
+In the image, `ENV_DEFAULT`, `ENV_NOVEL`, `RIBO_DETECTOR_CPU`, `MULTIQC` and `SCRIPTS_DIR` point to the image's
+environments and scripts. A config that sets them in the `${VAR:-default}` form (as `srna_pipeline.config.sh`
+does) keeps the image's values; set everything else (databases, adapters, ...) as usual.
+
+**On Slurm**, `submit_srna_pipeline.sh` runs every job in the image:
+
+```bash
+./submit_srna_pipeline.sh -s samples.tsv -o out -c my.config.sh \
+    --container /path/to/srna-imp.sif --bind /work/projects,/scratch/users,/mnt/isilon \
+    --container-module tools/Apptainer
+```
+
+`--bind` lists the folders the jobs need: reads, IMP3 outputs and databases (their top folders are enough); the
+sample sheet, the config and the output folder are bound automatically. Paths are kept as written (not resolved
+to physical paths), so on a site with several clusters use paths that exist on all of them.
+
+**On one machine** the image's run script is `srna_pipeline.sh`:
+
+```bash
+apptainer run --bind /data,/databases srna-imp.sif -s samples.tsv -o out -c my.config.sh -t 16
+```
 
 ## Databases and references
 

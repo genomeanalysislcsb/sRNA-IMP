@@ -31,6 +31,13 @@ micromamba create -p envs/multiqc           -f envs/multiqc.yml      # optional
 ./srna_status.sh -s samples.tsv -o out                           # done / running / failed per row
 ```
 
+Or with the container image instead of the environments (pipeline + environments in one Apptainer image):
+
+```bash
+MOUNTS="/work/projects /scratch/users" container/build.sh srna-imp.sif     # once
+./submit_srna_pipeline.sh -s samples.tsv -o out -c my.config.sh --container srna-imp.sif --bind /work/projects,/scratch/users
+```
+
 See [Installation](https://genomeanalysislcsb.github.io/sRNA-IMP/installation/),
 [Running](https://genomeanalysislcsb.github.io/sRNA-IMP/running/) and the
 [configuration reference](https://genomeanalysislcsb.github.io/sRNA-IMP/configuration/).
@@ -47,6 +54,7 @@ See [Installation](https://genomeanalysislcsb.github.io/sRNA-IMP/installation/),
 | `srna_pack_summary.sh` | pack the summary tables and reports of a run |
 | `scripts/` | Python helpers (counting, fragments, integrity, CRISPR, comparisons, reports, cohort statistics, Methods) |
 | `envs/` | conda / micromamba environments |
+| `container/` | Apptainer image: definition and `build.sh` |
 | `docs/`, `mkdocs.yml` | documentation (MkDocs Material, deployed to GitHub Pages) |
 
 ## Citation and license

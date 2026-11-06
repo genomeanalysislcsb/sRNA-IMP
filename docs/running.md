@@ -60,6 +60,8 @@ be a different copy. The second line of every log (`# samples=… config=…`) s
   whether to submit anyway,
 * every job activates the environment itself and repeats the check on its node,
 * logs in `<outdir>/slurm_logs/` (`%x_%A_%a.out/.err`), `--dry-run` prints the job script.
+* `--container srna-imp.sif --bind <folders>`: every job runs in the [container image](installation.md#container-apptainer)
+  instead of the environments (`--container-module tools/Apptainer` loads Apptainer in the job).
 
 ## Re-running
 

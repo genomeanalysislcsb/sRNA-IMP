@@ -21,6 +21,11 @@ Pipeline options (passed to srna_pipeline.sh):
   -m, --modules LIST     modules              [qc,contam,prep,split,human,nonhuman,mirna_origin,assembly,novel,fragments,bins,crispr]
   -f, --force            re-run finished modules
   -e, --env ENV          conda/micromamba env activated in the job   [ENV_DEFAULT from config = gut_srna_pipeline]
+      --container SIF    run every job in the sRNA-IMP image (pipeline + environments from the image; -e ignored)
+      --bind LIST        folders the jobs must see in the container, comma-separated, e.g. the top folders of the
+                         reads, IMP3 outputs and databases: /work/projects,/scratch/users  (sample sheet, config and
+                         output folder are bound automatically)
+      --container-module M  'module load M' in the job before apptainer (e.g. tools/Apptainer)
       --no-compare       do not submit the comparison + report job after the array
       --compare-only     submit only the comparison + report job (no array)
       --compare-time T   wall time of the comparison + report job (all samples, sequential)  [1-00:00:00]
@@ -47,6 +52,7 @@ MODULES="qc,contam,prep,split,human,nonhuman,mirna_origin,assembly,novel,fragmen
 DO_COMPARE=1; COMPARE_ONLY=0
 CPUS=16; TIME="2-00:00:00"; MEM=""; PARTITION="batch"; QOS="normal"; ACCOUNT=""
 ENVNAME=""; JOBNAME="sRNA"; ROWS=""; MAXPAR=20; MAIL=""; DRYRUN=0
+SIF=""; BINDS=""; CMODULE=""
 EXTRA=()
 
 while [[ $# -gt 0 ]]; do
@@ -57,6 +63,9 @@ while [[ $# -gt 0 ]]; do
     -m|--modules)    MODULES=$2; shift 2 ;;
     -f|--force)      FORCE="--force"; shift ;;
     -e|--env)        ENVNAME=$2; shift 2 ;;
+    --container)     SIF=$2; shift 2 ;;
+    --bind)          BINDS=$2; shift 2 ;;
+    --container-module) CMODULE=$2; shift 2 ;;
     --no-compare)    DO_COMPARE=0; shift ;;
     --compare-only)  COMPARE_ONLY=1; shift ;;
     --compare-time)  COMPARE_TIME=$2; shift 2 ;;
@@ -80,16 +89,42 @@ done
 
 [[ -n "$SAMPLES" && -n "$OUTDIR" ]] || { usage >&2; exit 1; }
 [[ -x "$RUN" ]] || chmod +x "$RUN" 2>/dev/null || true
-SAMPLES=$(readlink -f "$SAMPLES")
-CONFIG=$(readlink -f "$CONFIG")
 mkdir -p "$OUTDIR/slurm_logs"
-OUTDIR=$(readlink -f "$OUTDIR")
+if [[ -n "$SIF" ]]; then
+  # container: paths as the shell names them (not resolved: on ULHPC /work/projects is /mnt/aiongpfs/projects on
+  # aion only), bound as path:path; the pipeline and its environments come from the image
+  labs() { case "$1" in /*) echo "$1" ;; *) echo "$PWD/$1" ;; esac; }
+  SAMPLES=$(labs "$SAMPLES"); CONFIG=$(labs "$CONFIG"); OUTDIR=$(labs "$OUTDIR"); SIF=$(labs "$SIF")
+  [[ -s "$SIF" ]] || { echo "Error: container image '$SIF' not found" >&2; exit 1; }
+  BLIST=("$OUTDIR" "$(dirname "$SAMPLES")" "$(dirname "$CONFIG")")
+  IFS=', ' read -r -a _b <<< "$BINDS"; BLIST+=(${_b[@]+"${_b[@]}"})
+  # shortest first; a folder below one already bound is not bound again
+  BARGS=""; KEPT=()
+  while read -r b; do
+    [[ -z "$b" ]] && continue
+    b=${b%/}; skip=0
+    for k in ${KEPT[@]+"${KEPT[@]}"}; do [[ "$b" == "$k" || "$b" == "$k"/* ]] && skip=1; done
+    [[ $skip -eq 1 ]] && continue
+    KEPT+=("$b"); BARGS+=" --bind $b:$b"
+  done < <(printf '%s\n' "${BLIST[@]}" | awk 'NF { print length($0) "\t" $0 }' | sort -n -u | cut -f2-)
+  CPRE=""; [[ -n "$CMODULE" ]] && CPRE="module load $CMODULE && "
+  APPCMD='$(command -v apptainer || command -v singularity)'
+  RUN_IN="\"$APPCMD\" exec$BARGS \"$SIF\" bash /opt/srna-imp/srna_pipeline.sh"
+  ENVOPT=""
+else
+  SAMPLES=$(readlink -f "$SAMPLES")
+  CONFIG=$(readlink -f "$CONFIG")
+  OUTDIR=$(readlink -f "$OUTDIR")
+  CPRE=""
+  RUN_IN="bash \"$RUN\""
+fi
 
 # environment to activate in the job (default: ENV_DEFAULT from the config)
 if [[ -z "$ENVNAME" ]]; then
   ENVNAME=$(bash -c 'source "$1" >/dev/null 2>&1; echo "${ENV_DEFAULT:-}"' _ "$CONFIG")
 fi
 [[ -n "$ENVNAME" ]] || ENVNAME=gut_srna_pipeline
+[[ -z "$SIF" ]] && ENVOPT="-e \"$ENVNAME\""
 
 N=$(bash "$RUN" -s "$SAMPLES" -c "$CONFIG" --count-rows)
 [[ "$N" -gt 0 ]] || { echo "Error: no data rows in $SAMPLES" >&2; exit 1; }
@@ -98,7 +133,9 @@ ARRAY="${ROWS:-1-$N}%$MAXPAR"
 # quick validation of all inputs before anything is queued
 echo "# validating $N row(s) ..."
 CHECKLOG="$OUTDIR/slurm_logs/check.$(date +%Y%m%d_%H%M%S).log"
-if ! bash "$RUN" -s "$SAMPLES" -o "$OUTDIR" -c "$CONFIG" -m "$MODULES" --check > "$CHECKLOG" 2>&1; then
+if [[ -n "$SIF" ]] && ! bash -lc "${CPRE}command -v apptainer || command -v singularity" >/dev/null 2>&1; then
+  echo "# no apptainer / singularity here: inputs are checked in the jobs (or run on a node with apptainer)"
+elif ! bash -lc "$CPRE$RUN_IN -s \"$SAMPLES\" -o \"$OUTDIR\" -c \"$CONFIG\" -m \"$MODULES\" --check" > "$CHECKLOG" 2>&1; then
   echo "WARNING: environment, tools, databases or inputs missing — see $CHECKLOG" >&2
   grep -E "MISSING|Error" "$CHECKLOG" | head -20 >&2 || true
   if [[ $DRYRUN -eq 0 && -t 0 ]]; then
@@ -121,11 +158,11 @@ JOBSCRIPT=$(cat <<EOF
 set -euo pipefail
 echo "# job \$SLURM_JOB_ID array task \$SLURM_ARRAY_TASK_ID on \$(hostname)"
 
-# the environment ($ENVNAME) is activated automatically by srna_pipeline.sh (-e)
+# $( [[ -n "$SIF" ]] && echo "container $SIF: pipeline and environments of the image" || echo "the environment ($ENVNAME) is activated automatically by srna_pipeline.sh" )
 # node-local temp space if the cluster provides one
 export TMP_ROOT="\${TMP_ROOT:-\${SLURM_TMPDIR:-\${TMPDIR:-/tmp}}}"
 # one line on purpose: backslash-newline inside a here-document in \$( ) is handled differently by bash versions
-bash "$RUN" -s "$SAMPLES" -o "$OUTDIR" -c "$CONFIG" -e "$ENVNAME" -m "$MODULES" -t "\$SLURM_CPUS_PER_TASK" -r "\$SLURM_ARRAY_TASK_ID" $FORCE
+$CPRE$RUN_IN -s "$SAMPLES" -o "$OUTDIR" -c "$CONFIG" $ENVOPT -m "$MODULES" -t "\$SLURM_CPUS_PER_TASK" -r "\$SLURM_ARRAY_TASK_ID" $FORCE
 EOF
 )
 
@@ -134,7 +171,7 @@ CMPSCRIPT=$(cat <<EOF
 # generated by submit_srna_pipeline.sh on $(date '+%F %T') — per-sample comparison
 set -euo pipefail
 echo "# job \$SLURM_JOB_ID (compare) on \$(hostname)"
-bash "$RUN" -s "$SAMPLES" -o "$OUTDIR" -c "$CONFIG" -e "$ENVNAME" --compare --report --cohort
+$CPRE$RUN_IN -s "$SAMPLES" -o "$OUTDIR" -c "$CONFIG" $ENVOPT --compare --report --cohort
 EOF
 )
 CB=(--job-name "${JOBNAME}_compare" --nodes 1 --ntasks 1 --cpus-per-task 4 --mem "${COMPARE_MEM:-32G}"
@@ -144,7 +181,7 @@ CB=(--job-name "${JOBNAME}_compare" --nodes 1 --ntasks 1 --cpus-per-task 4 --mem
 [[ -n "$ACCOUNT" ]] && CB+=(--account "$ACCOUNT")
 [[ -n "$MAIL" ]]    && CB+=(--mail-user "$MAIL" --mail-type END,FAIL)
 
-echo "# env: $ENVNAME"
+if [[ -n "$SIF" ]]; then echo "# container: $SIF (binds:${BARGS:- none})"; else echo "# env: $ENVNAME"; fi
 echo "# rows: $N  array: $ARRAY  cpus: $CPUS  time: $TIME  partition: $PARTITION  qos: $QOS"
 if [[ $DRYRUN -eq 1 ]]; then
   if [[ $COMPARE_ONLY -eq 0 ]]; then
