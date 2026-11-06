@@ -5,7 +5,8 @@ container, or before / after a change of the pipeline.
   python3 scripts/srna_compare_runs.py REF_OUTDIR NEW_OUTDIR [-S SAMPLE ...] [--tol 1e-6] [--out diff.tsv]
 
 For every table (*.tsv, *.tsv.gz, Kraken reports) below <outdir>/<sample>/{Stats,Analysis,Report} that exists in
-both runs: rows are matched on the text columns, numbers compared. A table is 'identical', 'same' (numbers equal
+both runs: rows are matched on the text columns and on numeric id / coordinate columns (start, end, strand, bin,
+taxon, *_id, ...; more with --key), the other numbers compared. A table is 'identical', 'same' (numbers equal
 within --tol, e.g. rounding), or 'differs' (rows only in one run, largest relative difference, sum of the numbers,
 Spearman of the first numeric column). Read numbers per step (read_stats.tsv) are printed side by side. Tables
 only in one run are listed. Exit code 1 when tables differ or are missing in the new run."""
@@ -13,12 +14,17 @@ import argparse
 import glob
 import gzip
 import os
+import re
 import sys
 
 import pandas as pd
 
 SKIP_PARTS = ("/tmp/", "/fastqc/", "/multiqc/", "/logs/")
 MAX_BYTES = 300 * 1024 * 1024
+# numeric columns that identify a row (coordinates, ids, taxa) are keys, not values
+KEY_COLS = re.compile(r"^(start|end|pos|position|strand|frame|phase|length|len|bin|rank|chrom|contig|taxon|taxid|"
+                      r"tax_?id|id|.*_id|.*_taxid|.*_start|.*_end)$", re.I)
+REPORT_KEYS = (3, 4, 5)                     # Kraken / Bracken report (no header): rank code, taxid, name
 
 
 def tables(base):
@@ -26,7 +32,8 @@ def tables(base):
     for sub in ("Stats", "Analysis", "Report"):
         root = os.path.join(base, sub)
         for p in glob.glob(os.path.join(root, "**", "*"), recursive=True):
-            if not os.path.isfile(p) or any(s in p + "/" for s in SKIP_PARTS):
+            rel = "/" + os.path.relpath(p, base) + "/"           # only folders inside the sample count
+            if not os.path.isfile(p) or any(s in rel for s in SKIP_PARTS):
                 continue
             if p.endswith((".tsv", ".tsv.gz", ".report")) and os.path.getsize(p) <= MAX_BYTES:
                 out[os.path.relpath(p, base)] = p
@@ -42,28 +49,33 @@ def read(p):
                        skiprows=1 if first.startswith("#") and not first.startswith("#\t") else 0)
 
 
-def numeric_cols(d):
+def numeric_cols(d, extra_keys=()):
     num = []
     for c in d.columns:
+        if (isinstance(c, str) and (KEY_COLS.match(c) or c in extra_keys)) or (isinstance(c, int) and c in REPORT_KEYS):
+            continue
         v = pd.to_numeric(d[c].replace("", None), errors="coerce")
         if len(d) and v.notna().sum() == (d[c] != "").sum() and v.notna().any():
             num.append(c)
     return num
 
 
-def compare(pr, pn, tol):
+def compare(pr, pn, tol, extra_keys=()):
     a, b = read(pr), read(pn)
     if a.equals(b):
         return "identical", ""
     if list(a.columns) != list(b.columns):
         return "differs", "columns differ: %s / %s" % (len(a.columns), len(b.columns))
-    num = [c for c in numeric_cols(a) if c in numeric_cols(b)]
+    num = [c for c in numeric_cols(a, extra_keys) if c in numeric_cols(b, extra_keys)]
     keys = [c for c in a.columns if c not in num]
     if not num:
         return "differs", "text differs (%d / %d rows)" % (len(a), len(b))
     if keys:
-        A = a.assign(**{c: pd.to_numeric(a[c]) for c in num}).groupby(keys, dropna=False)[num].sum()
-        B = b.assign(**{c: pd.to_numeric(b[c]) for c in num}).groupby(keys, dropna=False)[num].sum()
+        a, b = a.copy(), b.copy()
+        for c in num:                                          # (headerless reports have integer column names)
+            a[c], b[c] = pd.to_numeric(a[c]), pd.to_numeric(b[c])
+        A = a.groupby(keys, dropna=False)[num].sum()
+        B = b.groupby(keys, dropna=False)[num].sum()
     else:
         if len(a) != len(b):
             return "differs", "rows %d / %d" % (len(a), len(b))
@@ -90,6 +102,8 @@ def main(argv=None):
     ap.add_argument("-S", "--sample", action="append", default=[], help="sample(s)  [all samples of the new run]")
     ap.add_argument("--tol", type=float, default=1e-6, help="relative tolerance for 'same'  [1e-6]")
     ap.add_argument("--out", default="", help="write the comparison per table as TSV")
+    ap.add_argument("--key", action="append", default=[],
+                    help="numeric column(s) to match rows on instead of comparing them  [start, end, taxon, *_id, ...]")
     a = ap.parse_args(argv)
     samples = a.sample or sorted(d for d in os.listdir(a.new) if os.path.isdir(os.path.join(a.new, d, "Stats"))
                                  or os.path.isdir(os.path.join(a.new, d, "Analysis")))
@@ -114,7 +128,7 @@ def main(argv=None):
                 st, info = "only in new", ""
             else:
                 try:
-                    st, info = compare(R[rel], N[rel], a.tol)
+                    st, info = compare(R[rel], N[rel], a.tol, a.key)
                 except Exception as e:                       # one unreadable table does not stop the comparison
                     st, info = "error", "%s: %s" % (type(e).__name__, e)
             rows.append((s, rel, st, info))
