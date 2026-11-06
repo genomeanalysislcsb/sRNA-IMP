@@ -106,7 +106,7 @@ if [[ -n "$SIF" ]]; then
     for k in ${KEPT[@]+"${KEPT[@]}"}; do [[ "$b" == "$k" || "$b" == "$k"/* ]] && skip=1; done
     [[ $skip -eq 1 ]] && continue
     KEPT+=("$b"); BARGS+=" --bind $b:$b"
-  done < <(printf '%s\n' "${BLIST[@]}" | awk 'NF { print length($0) "\t" $0 }' | sort -n -u | cut -f2-)
+  done < <(printf '%s\n' "${BLIST[@]}" | awk 'NF { print length($0) "\t" $0 }' | sort -t"$(printf "\\t")" -k1,1n -k2,2 -u | cut -f2-)
   CPRE=""; [[ -n "$CMODULE" ]] && CPRE="module load $CMODULE && "
   APPCMD='$(command -v apptainer || command -v singularity)'
   RUN_IN="\"$APPCMD\" exec$BARGS \"$SIF\" bash /opt/srna-imp/srna_pipeline.sh"
