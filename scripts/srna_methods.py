@@ -398,7 +398,14 @@ def processing_sections(X, types):
         "Novel small RNA loci were detected from the assembly alignments%s: reads were merged per strand into "
         "clusters with %s (merge -s -d %s), and clusters of %s–%s nt with at least %s weighted reads were "
         "kept." % (
-            " after removal of the rRNA reads defined above" if X.on("NOVEL_EXCLUDE_RRNA") else "",
+            (" after removal of the rRNA reads defined above" if X.on("NOVEL_EXCLUDE_RRNA") else "") +
+            (" and of all reads with an alignment on an annotated %s gene (on the same strand), whose further "
+             "alignments to unannotated or partial copies of these genes would otherwise form spurious loci" % (
+                 ", ".join(P("NOVEL_EXCLUDE_ANNOTATED_TYPES", "tRNA,rRNA,tmRNA").split(",")[:-1]) + " or " +
+                 P("NOVEL_EXCLUDE_ANNOTATED_TYPES", "tRNA,rRNA,tmRNA").split(",")[-1]
+                 if "," in P("NOVEL_EXCLUDE_ANNOTATED_TYPES", "tRNA,rRNA,tmRNA") else
+                 P("NOVEL_EXCLUDE_ANNOTATED_TYPES", "tRNA,rRNA,tmRNA"))
+             if X.on("NOVEL_EXCLUDE_ANNOTATED_MULTI", "1") else ""),
             X.tool("bedtools"), P("NOVEL_MERGEDIST", "10"), P("NOVEL_MINLEN", "18"), P("NOVEL_MAXLEN", "250"),
             P("NOVEL_MINREADS", "10")),
         "The annotation was complemented with tRNA and tmRNA genes predicted by %s%s; clusters without a feature on "

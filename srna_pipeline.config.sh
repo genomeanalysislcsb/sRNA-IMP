@@ -160,10 +160,12 @@ RRNA_RESCUE_MAX_SENSE_RATIO="${RRNA_RESCUE_MAX_SENSE_RATIO-0.1}" # ... and sense
 RRNA_RESCUE_CM="${RRNA_RESCUE_CM-}"         # rRNA subset of RFAM_CM (built once, cmpress); "" = <outdir>/.shared/Rfam.rRNA.cm
 NOVEL_MINLEN=18
 NOVEL_MAXLEN=250
-NOVEL_EXCLUDE_ANNOTATED_MULTI=${NOVEL_EXCLUDE_ANNOTATED_MULTI-0}  # 1 = reads with any alignment on an annotated tRNA/rRNA/
-                             # tmRNA/ncRNA do not support novel loci (their multi-mapping copies on unannotated or partial
-                             # copies of the same RNA otherwise become candidates); being benchmarked
-NOVEL_EXCLUDE_ANNOTATED_TYPES=${NOVEL_EXCLUDE_ANNOTATED_TYPES-tRNA,rRNA,tmRNA,ncRNA}  # GFF types used for it
+NOVEL_EXCLUDE_ANNOTATED_MULTI=${NOVEL_EXCLUDE_ANNOTATED_MULTI-1}  # 1 = reads with any alignment on an annotated gene of
+                             # NOVEL_EXCLUDE_ANNOTATED_TYPES do not support novel loci: their multi-mapping alignments on
+                             # unannotated or partial copies of the same RNA otherwise become candidates. Simulation
+                             # benchmark: real candidates 53 -> 79 %, recall of hidden ncRNA/regulatory loci unchanged (68 %)
+NOVEL_EXCLUDE_ANNOTATED_TYPES=${NOVEL_EXCLUDE_ANNOTATED_TYPES-tRNA,rRNA,tmRNA}  # GFF types (adding ncRNA: 89 % real
+                             # candidates but recall 62 %, hidden ncRNAs with annotated paralogs are lost)
 NOVEL_MINREADS=10            # min. read support per locus; multi-mapping reads count 1/hits per alignment
 NOVEL_MERGEDIST=10
 RUN_ARAGORN=1

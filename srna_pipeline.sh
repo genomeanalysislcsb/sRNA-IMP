@@ -1156,16 +1156,16 @@ module_novel() {
   [[ -e "$TEMPDIR/rrna.seqs" ]] || : > "$TEMPDIR/rrna.seqs"
   # reads with any alignment on an annotated structural RNA (tRNA, rRNA, tmRNA, ncRNA; same strand): their other
   # (multi-mapping) alignments would otherwise form "novel" loci on unannotated / partial copies of the same RNA
-  if [[ "${NOVEL_EXCLUDE_ANNOTATED_MULTI:-0}" -eq 1 ]]; then
-    awk -v types="${NOVEL_EXCLUDE_ANNOTATED_TYPES:-tRNA,rRNA,tmRNA,ncRNA}" 'BEGIN{FS=OFS="\t"; n = split(types, a, ",")
+  if [[ "${NOVEL_EXCLUDE_ANNOTATED_MULTI:-1}" -eq 1 ]]; then
+    awk -v types="${NOVEL_EXCLUDE_ANNOTATED_TYPES:-tRNA,rRNA,tmRNA}" 'BEGIN{FS=OFS="\t"; n = split(types, a, ",")
            for (i = 1; i <= n; i++) want[a[i]] = 1 }
          $0 !~ /^#/ && NF>=8 && ($3 in want) { s = $4 - 1; if (s < 0) s = 0; print $1, s, $5, $3, ".", $7 }' \
       "$GFF" > "$TEMPDIR/rna_annot.bed"
-    [[ -s "$RESC" && ",${NOVEL_EXCLUDE_ANNOTATED_TYPES:-tRNA,rRNA,tmRNA,ncRNA}," == *",rRNA,"* ]] && awk 'BEGIN{OFS="\t"} {print $1,$2,$3,"rRNA",".",$6}' "$RESC" >> "$TEMPDIR/rna_annot.bed"
+    [[ -s "$RESC" && ",${NOVEL_EXCLUDE_ANNOTATED_TYPES:-tRNA,rRNA,tmRNA}," == *",rRNA,"* ]] && awk 'BEGIN{OFS="\t"} {print $1,$2,$3,"rRNA",".",$6}' "$RESC" >> "$TEMPDIR/rna_annot.bed"
     if [[ -s "$TEMPDIR/rna_annot.bed" ]]; then
       bedtools intersect -s -u -abam "$BAM" -b "$TEMPDIR/rna_annot.bed" | samtools view - | cut -f1 \
         | sort -u -T "$TEMPDIR" >> "$RRIDS"
-      log "[1-4/14] NOVEL_EXCLUDE_ANNOTATED_MULTI=1: leaving out reads with an alignment on an annotated ${NOVEL_EXCLUDE_ANNOTATED_TYPES:-tRNA,rRNA,tmRNA,ncRNA} (now $(sort -u "$RRIDS" | wc -l) reads excluded in total)"
+      log "[1-4/14] NOVEL_EXCLUDE_ANNOTATED_MULTI=1: leaving out reads with an alignment on an annotated ${NOVEL_EXCLUDE_ANNOTATED_TYPES:-tRNA,rRNA,tmRNA} (now $(sort -u "$RRIDS" | wc -l) reads excluded in total)"
     fi
   fi
   log "[1-4/14] alignments from $BAM (weight 1/NH) ..."
