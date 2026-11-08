@@ -238,16 +238,40 @@ def main():
             for t in truth.values():
                 if t["origin"] == "microbial_assembled" and t["contig"] in need:
                     rd[t["contig"]].append((int(t["start"]), int(t["end"]), t["strand"], t["class"]))
-            dom, lens = collections.Counter(), collections.Counter()
+            # Rfam hits of the candidates (cmscan --tblout; query = contig:start-end(strand) from bedtools getfasta)
+            rfam = {}
+            tbl = os.path.join(ana, "novel", "%s.candidates.rfam.tbl" % S)
+            if os.path.exists(tbl):
+                with open(tbl) as fh:
+                    for line in fh:
+                        if line.startswith("#") or not line.strip():
+                            continue
+                        f = line.split()
+                        rfam.setdefault(f[2], f[0])          # best (first) hit per candidate
+            def rfam_kind(name):
+                n = name.lower()
+                if "rrna" in n:
+                    return "rRNA"
+                if n.startswith("trna") or n == "tmrna" or n.startswith("tmrna"):
+                    return "tRNA/tmRNA"
+                return "other_Rfam"
+            dom, lens, nohit = collections.Counter(), collections.Counter(), collections.Counter()
             for c in cands:
                 if any(h[2] < c[2] and c[1] < h[3] for h in hid_by[c[0]]):
                     continue
                 k = collections.Counter(r[3] for r in rd[c[0]] if r[0] < c[2] and c[1] < r[1] and r[2] == c[3])
-                dom[k.most_common(1)[0][0] if k else "no_truth_reads"] += 1
+                d = k.most_common(1)[0][0] if k else "no_truth_reads"
+                dom[d] += 1
+                if rfam or os.path.exists(tbl):
+                    hit = rfam.get("%s:%d-%d(%s)" % (c[0], c[1], c[2], c[3]))
+                    nohit["%s|%s" % (d, rfam_kind(hit) if hit else "no_Rfam_hit")] += 1
                 L = c[2] - c[1]
                 lens["<100" if L < 100 else "100-250" if L < 250 else ">=250"] += 1
             for k, n in dom.most_common():
                 M.append(("novel", "other_candidates_mostly_%s" % k, n))
+            for k, n in sorted(nohit.items(), key=lambda kv: -kv[1]):
+                d, r = k.split("|")
+                M.append(("novel", "other_candidates_%s_rfam_%s" % (d, r), n))
             for k in ("<100", "100-250", ">=250"):
                 if lens[k]:
                     M.append(("novel", "other_candidates_len_%snt" % k, lens[k]))
