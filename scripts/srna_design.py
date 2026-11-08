@@ -18,6 +18,7 @@ Text helpers (used by srna_report.py, srna_cohort.py and srna_methods.py):
   D.libraries  "small RNA libraries (intracellular and extracellular fractions)" or "small RNA libraries"
   D.sample_type  free label of the sample material (SAMPLE_TYPE, default "stool")
   D.host       host word (HOST_NAME, default "human")
+  D.host_only  library types run without an assembly (assembly and gff '-', e.g. blood sRNA)
 """
 import glob
 import os
@@ -43,8 +44,9 @@ def _given(v):
 
 
 class Design:
-    def __init__(self, types=(), metaT=False, metaG=False, sample_type="stool", host="human"):
+    def __init__(self, types=(), metaT=False, metaG=False, sample_type="stool", host="human", host_only=()):
         self.types = list(types)
+        self.host_only = [t for t in host_only if t in self.types] if self.types else list(host_only)
         self.metaT = bool(metaT)
         self.metaG = bool(metaG)
         self.sample_type = sample_type or "stool"
@@ -96,7 +98,7 @@ class Design:
 def design(outdir="", types=None, samples=None, sample_type="stool", host="human"):
     """Design of a run: from the inputs.tsv of all (or the given) samples under outdir.
     types: library types to use instead of the ones found; samples: sample IDs to restrict to."""
-    found, metaT, metaG = [], False, False
+    found, metaT, metaG, host_only, with_asm = [], False, False, set(), set()
     keep = set(samples) if samples else None
     if outdir:
         for p in sorted(glob.glob(os.path.join(outdir, "*", "log_cluster_jobs", "*", "inputs.tsv"))):
@@ -107,8 +109,9 @@ def design(outdir="", types=None, samples=None, sample_type="stool", host="human
             t = d.get("type") or p.split(os.sep)[-2]
             if t not in found:
                 found.append(t)
+            (host_only if d.get("library") == "host_only" or d.get("assembly") in ("", "-") else with_asm).add(t)
             metaT = metaT or _given(d.get("metaT_features")) or _given(d.get("metaT_contigs"))
             metaG = metaG or _given(d.get("metaG_features")) or _given(d.get("metaG_contigs"))
     t = [x for x in (types or found) if x]
     t.sort(key=lambda x: (x not in FRACTIONS, FRACTIONS.index(x) if x in FRACTIONS else 0, x))
-    return Design(t, metaT, metaG, sample_type, host)
+    return Design(t, metaT, metaG, sample_type, host, sorted(host_only - with_asm))

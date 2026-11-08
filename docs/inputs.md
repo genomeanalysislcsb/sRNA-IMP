@@ -27,6 +27,18 @@ BXXX1      sRNA-Int  /data/raw/Int/BXXX1.fastq.gz /data/imp/bxxx1/assembly.fa.gz
 
 * Columns 3–5 must be **absolute paths**; a row with a missing or relative path is reported and skipped,
   the other rows still run.
+* **Host-only libraries** (no metagenome, e.g. blood small RNA of the same participants): set `assembly` and
+  `gff` both to `-`. Such a row runs `qc`, `contam`, `split` (without assembly rescue), `human` and `nonhuman`;
+  the other modules are marked done as not applicable, and the library is left out of `--compare`.
+  Give it its own type (e.g. `sRNA-blood`) next to the stool rows of the same sample:
+
+  ```text
+  BXXX1  sRNA        /data/raw/stool/BXXX1.fastq.gz  /data/imp/bxxx1/assembly.fa.gz  /data/imp/bxxx1/annotation.gff.gz
+  BXXX1  sRNA-blood  /data/raw/blood/BXXX1.fastq.gz  -                               -
+  ```
+
+  Linking blood and stool small RNA of the same participant (shared miRNAs, origin of the human miRNAs in stool)
+  is not part of the cohort step yet.
 * Columns 6–11 belong to the *sample*, not the row: give them on any one row of the sample, `-` = not
   available. They are only used by `fragments`, `bins` and `--compare` (`srna_pipeline.sh` only).
 * The same sample may appear with several types. Assembly and annotation are staged once

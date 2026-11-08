@@ -473,7 +473,9 @@ module_split() {
   (( SHORT_LEN < HMIN )) && SHORT_LEN=$HMIN
   local N_TOOSHORT=0
   local RESCUE=${HOST_ASSEMBLY_RESCUE:-1}
-  if [[ "$RESCUE" -eq 1 ]]; then
+  if [[ "${HOST_ONLY:-0}" -eq 1 ]]; then
+    RESCUE=0; log "host-only library (no assembly): assembly rescue not applicable"
+  elif [[ "$RESCUE" -eq 1 ]]; then
     [[ -s "$ASSEMBLY.gz" ]] || die "missing $ASSEMBLY.gz — run module prep before split (needed for HOST_ASSEMBLY_RESCUE=1)"
   fi
   make_tempdir
@@ -561,7 +563,7 @@ module_split() {
     N_RESCUED=$(fastq_reads "$RESCUED")
     log "  $N_RESCUED host-mapped reads also match the assembly -> non-human"
     cp "$TEMPDIR/rescued.ids" "$L/$PREFIX.assembly_rescued.ids" 2>/dev/null || true
-  elif [[ "$RESCUE" -ne 1 ]]; then
+  elif [[ "$RESCUE" -ne 1 && "${HOST_ONLY:-0}" -ne 1 ]]; then
     log "assembly rescue disabled (HOST_ASSEMBLY_RESCUE=0)"
   fi
 
@@ -1671,6 +1673,15 @@ run_module() {
     log "already done ($stamp) — skipping (use -f to re-run)"
     return 0
   fi
+  # host-only libraries (assembly and gff '-', e.g. blood): only the modules that need no assembly run; the
+  # others are marked done as not applicable (srna_status.sh then shows the library as done)
+  if [[ "${HOST_ONLY:-0}" -eq 1 && " $HOST_ONLY_MODULES " != *" $m "* ]]; then
+    log "host-only library: module $m not applicable — skipped"
+    mkdir -p "$LOGDIR"
+    printf '%s\t0\tskipped: host-only library (no assembly)\n' "$(date '+%F %T')" > "$stamp"
+    rm -f "$LOGDIR/.$m.failed"
+    return 0
+  fi
   # libraries with (almost) no reads (failed library): later modules are skipped and marked done; the QC rules
   # flag the library (FAIL: too few reads), so it is left out of the cohort statistics
   if [[ ",qc,contam,prep,split," != *",$m,"* && -s "$STATS_DIR/$PREFIX.$TYPE.read_stats.tsv" ]]; then
@@ -1725,9 +1736,11 @@ run_module() {
 check_row() {
   local ok=0 f
   log "inputs:"
+  [[ "${HOST_ONLY:-0}" -eq 1 ]] && log "  host-only library (assembly and gff '-'): modules $HOST_ONLY_MODULES"
   for f in "raw_fastq:$IN_RAW" "assembly:$IN_ASSEMBLY" "gff:$IN_GFF" \
            "host_genome_fa:$HOST_GENOME_FA" "host_tx_fa:${HOST_TX_FA:-}"; do
     local k=${f%%:*} v=${f#*:}
+    [[ "${HOST_ONLY:-0}" -eq 1 && ( "$k" == assembly || "$k" == gff ) ]] && continue
     [[ -z "$v" ]] && { [[ "$k" == host_tx_fa ]] && log "  $k: (none)" || { log "  $k: NOT SET"; ok=1; }; continue; }
     if [[ -s "$v" ]]; then log "  $k: OK  $v"
     else log "  $k: MISSING $v"; ok=1; fi
@@ -2132,6 +2145,7 @@ if [[ $COMPARE -eq 1 || $REPORT -eq 1 || $COHORT -eq 1 ]]; then
 fi
 
 FAILED=0
+HOST_ONLY_MODULES="qc contam split human nonhuman"   # modules that need no assembly (host-only libraries)
 [[ $CHECK_ONLY -eq 1 && $ENVCHK_MISSING -gt 0 ]] && FAILED=1
 for line in "${SEL[@]}"; do
   read -r PREFIX TYPE C_RAW C_ASM C_GFF C_BIN C_GTDB C_MTF C_MTC C_MGF C_MGC _rest <<< "$line" || true
@@ -2141,15 +2155,20 @@ for line in "${SEL[@]}"; do
   [[ -n "$SAMPLE_FILTER" && "$PREFIX" != "$SAMPLE_FILTER" ]] && continue
   [[ -n "$TYPE_FILTER"   && "$TYPE"   != "$TYPE_FILTER"   ]] && continue
 
-  # raw_fastq, assembly and gff: required, full (absolute) paths
-  bad=""
+  # raw_fastq, assembly and gff: required, full (absolute) paths; assembly and gff both '-' = host-only library
+  # (e.g. blood sRNA without a metagenome): qc, contam, split, human and nonhuman only
+  bad=""; HOST_ONLY=0
+  [[ "${C_ASM:-}" == "-" && "${C_GFF:-}" == "-" ]] && HOST_ONLY=1
   [[ "${C_RAW:-}" == /* ]] || bad+=" raw_fastq(col3)"
-  [[ "${C_ASM:-}" == /* ]] || bad+=" assembly(col4)"
-  [[ "${C_GFF:-}" == /* ]] || bad+=" gff(col5)"
+  if [[ $HOST_ONLY -eq 0 ]]; then
+    [[ "${C_ASM:-}" == /* ]] || bad+=" assembly(col4)"
+    [[ "${C_GFF:-}" == /* ]] || bad+=" gff(col5)"
+  fi
   if [[ -n "$bad" ]]; then
     echo "Error: $PREFIX/$TYPE: missing or not a full path:$bad" >&2; FAILED=1; continue
   fi
   IN_RAW=$C_RAW; IN_ASSEMBLY=$C_ASM; IN_GFF=$C_GFF
+  [[ $HOST_ONLY -eq 1 ]] && { IN_ASSEMBLY=""; IN_GFF=""; }
   # optional per-sample columns (full path or "-"); fall back to another row of the same sample
   for v in C_BIN C_GTDB C_MTF C_MTC C_MGF C_MGC; do
     x=${!v:-}; [[ "$x" == "-" ]] && x=""
@@ -2174,7 +2193,8 @@ for line in "${SEL[@]}"; do
   {
     echo -e "sample\t$PREFIX"; echo -e "type\t$TYPE"
     echo -e "raw_fastq\t$IN_RAW"
-    echo -e "assembly\t$IN_ASSEMBLY"; echo -e "gff\t$IN_GFF"
+    echo -e "assembly\t${IN_ASSEMBLY:--}"; echo -e "gff\t${IN_GFF:--}"
+    echo -e "library\t$([[ $HOST_ONLY -eq 1 ]] && echo host_only || echo microbiome)"
     echo -e "host_genome_fa\t$HOST_GENOME_FA"; echo -e "host_tx_fa\t${HOST_TX_FA:-}"
     echo -e "contig2bin\t$IN_BINS"; echo -e "gtdbtk\t$IN_GTDB"
     echo -e "metaT_features\t$IN_MTF"; echo -e "metaT_contigs\t$IN_MTC"; echo -e "metaG_features\t$IN_MGF"; echo -e "metaG_contigs\t$IN_MGC"

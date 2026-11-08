@@ -280,6 +280,9 @@ def processing_sections(X, types):
         "the %s of the same sample, reconstructed with the integrated multi-omic workflow %s, so that small RNAs "
         "could be placed on the sample's own contigs, genes, genomic bins and functional annotation." % (
             D.assembly, X.rc("imp")),
+        ("Libraries without a paired metagenome (%s) were processed up to quality control, the separation of host "
+         "and microbial reads and their classification; no assembly-based analyses were run for them." % (
+             ", ".join(D.host_only)) if D.host_only else ""),
     ]))
     adapter = P("ADAPTER_3P", "[CHECK: adapter]")
     tr = P("ADAPTER_3P_TRUNC", "0")
