@@ -21,6 +21,8 @@ import collections
 import glob
 import gzip
 import os
+import shutil
+import subprocess
 import sys
 
 
@@ -289,12 +291,15 @@ def main():
                     return "tRNA/tmRNA"
                 return "other_Rfam"
             dom, lens, nohit = collections.Counter(), collections.Counter(), collections.Counter()
+            notruth = []
             for c in cands:
                 if any(h[2] < c[2] and c[1] < h[3] for h in hid_by[c[0]]):
                     continue
                 k = collections.Counter(r[3] for r in rd[c[0]] if r[0] < c[2] and c[1] < r[1] and r[2] == c[3])
                 d = k.most_common(1)[0][0] if k else "no_truth_reads"
                 dom[d] += 1
+                if d == "no_truth_reads":
+                    notruth.append(c)
                 if rfam or os.path.exists(tbl):
                     hit = rfam.get("%s:%d-%d(%s)" % (c[0], c[1], c[2], c[3]))
                     nohit["%s|%s" % (d, rfam_kind(hit) if hit else "no_Rfam_hit")] += 1
@@ -308,6 +313,35 @@ def main():
             for k in ("<100", "100-250", ">=250"):
                 if lens[k]:
                     M.append(("novel", "other_candidates_len_%snt" % k, lens[k]))
+            # where the reads on candidates without simulated reads come from: read names in the pipeline BAM
+            bam = os.path.join(ana, "novel", "%s.sorted.bam" % S)
+            if notruth and os.path.exists(bam) and shutil.which("samtools"):
+                bed = a.out + ".notruth.bed"
+                with open(bed, "w") as fh:
+                    for c in notruth:
+                        fh.write("%s\t%d\t%d\n" % (c[0], c[1], c[2]))
+                p = subprocess.run(["samtools", "view", "-F", "4", "-L", bed, bam], capture_output=True, text=True)
+                byc = collections.defaultdict(list)
+                for line in p.stdout.splitlines():
+                    f = line.split("\t", 10)
+                    pos, L = int(f[3]) - 1, len(f[9])
+                    byc[f[2]].append((pos, pos + L, f[0]))
+                origin = collections.Counter()
+                for c in notruth:
+                    o = collections.Counter()
+                    for s0, e0, rid in byc[c[0]]:
+                        if s0 < c[2] and c[1] < e0:
+                            t = truth.get(rid)
+                            if not t:
+                                o["unknown_read"] += 1
+                            elif t["origin"] == "microbial_assembled":
+                                o["assembled_elsewhere_" + t["class"]] += 1
+                            else:
+                                o["%s_%s" % (t["origin"], t["class"])] += 1
+                    origin[o.most_common(1)[0][0] if o else "no_reads_in_bam"] += 1
+                for k, n in origin.most_common(12):
+                    M.append(("novel", "no_truth_candidates_reads_from_%s" % k, n))
+                os.remove(bed)
             with open(a.out + ".novel.tsv", "w") as fh:
                 fh.write("feature\tcontig\tstart\tend\tstrand\tclass\ttruth_reads\tcandidates_overlapping\n")
                 for r in rows:
