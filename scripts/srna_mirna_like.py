@@ -145,7 +145,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--hits", required=True, help="<s>.mirna_like.hits.txt of module nonhuman")
     ap.add_argument("--mirbase-idx", required=True, help="bowtie index of all mature miRNAs (IDX_MIRNA_EUK)")
-    ap.add_argument("--hsa-mirna-idx", required=True, help="bowtie index of human mature miRNAs (IDX_HSA_MIRNA)")
+    ap.add_argument("--hsa-mirna-idx", required=True, help="bowtie index of the host mature miRNAs (IDX_HSA_MIRNA)")
+    ap.add_argument("--host-prefix", default="hsa", help="miRBase species prefix of the host (HOST_MIRNA_PREFIX) [hsa]")
     ap.add_argument("--host-idx", required=True, help="bowtie index of the human genome")
     ap.add_argument("--assembly-idx", required=True, help="bowtie index of the sample's assembly")
     ap.add_argument("--contig2bin")
@@ -197,7 +198,7 @@ def main():
         reads, assigned = seqs[s]
         names = sorted({h[0].split()[0] for h in mb.get(sid, [])}) or [assigned.split()[0]]
         fam, style = family(assigned)
-        hsa_exact = [n for n in names if n.startswith("hsa-")]
+        hsa_exact = [n for n in names if n.startswith(a.host_prefix + "-")]
         near = hs.get(sid, [])
         h_mm = min((h[3] for h in hg.get(sid, [])), default=None)
         c_hits = asm.get(sid, [])

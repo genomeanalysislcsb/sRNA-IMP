@@ -924,11 +924,12 @@ module_mirna_origin() {
   local mo=()
   [[ -n "${IN_BINS:-}" ]] && mo+=(--contig2bin "$IN_BINS")
   [[ -n "${IN_GTDB:-}" ]] && mo+=(--gtdbtk "$IN_GTDB")
-  log "origin of the miRNA-like reads (miRBase / human miRNAs / human genome / contigs) ..."
+  log "origin of the miRNA-like reads (miRBase / ${HOST_NAME:-human} miRNAs / ${HOST_NAME:-human} genome / contigs) ..."
   python3 "$SCRIPTS_DIR/srna_mirna_like.py" --hits "$MH" --mirbase-idx "$IDX_MIRNA_EUK" \
     --hsa-mirna-idx "$IDX_HSA_MIRNA" --host-idx "$HOST_IDX" --assembly-idx "$ASSEMBLY" \
     --mismatches "${MIRNA_ORIGIN_MISMATCHES:-0}" --threads "$THREADS" ${mo[@]+"${mo[@]}"} \
     --host-min-len "${HOST_MIN_LEN:-20}" --human-rescue "${MIRNA_HUMAN_RESCUE:-1}" \
+    --host-prefix "${HOST_MIRNA_PREFIX:-hsa}" \
     --out-prefix "$MD/$PREFIX" 2> "$L/$PREFIX.mirna_origin.log" \
     || die "srna_mirna_like.py failed (see $L/$PREFIX.mirna_origin.log)"
   sed 's/^/    | /' "$L/$PREFIX.mirna_origin.log"
@@ -1578,6 +1579,13 @@ run_compare() {   # sample ; uses CMP_* arrays filled by the driver
 # REPORT (per sample, --report): PDF with the key numbers and plots of all types
 # ==================================================================
 # ---------------------------------------------------------------- automated Methods (srna_methods.py)
+# mirna_markers: marker TSV for the report / cohort ("none" = no origin markers; the built-in human sets are
+# used only for a human host)
+mirna_markers() {
+  if [[ -n "${REPORT_MIRNA_MARKERS:-}" ]]; then echo "$REPORT_MIRNA_MARKERS"
+  elif [[ "${HOST_MIRNA_PREFIX:-hsa}" != hsa ]]; then echo none
+  fi
+}
 # write_params FILE: the resolved configuration (every NAME= of the config file) as NAME<TAB>VALUE
 write_params() {
   local f=$1 v
@@ -1631,9 +1639,10 @@ run_report() {   # sample
   (
     set -euo pipefail
     activate_env "${ENV_REPORT:-${ENV_DEFAULT:-}}"
+    local markers; markers=$(mirna_markers)
     python3 "$SCRIPTS_DIR/srna_report.py" --outdir "$OUTDIR" --sample "$S" --sample-type "${SAMPLE_TYPE:-stool}" \
       --pdf "$RDIR/$S.report.pdf" ${REPORT_HTML:+--html "$RDIR/$S.report.html"} \
-      ${REPORT_MIRNA_MARKERS:+--mirna-markers "$REPORT_MIRNA_MARKERS"} \
+      ${markers:+--mirna-markers "$markers"} --host-name "${HOST_NAME:-human}" \
       ${RFAM_FAMILY_TXT:+--rfam-family "$RFAM_FAMILY_TXT"} \
       ${RNA_QC:+--rna-qc "$RNA_QC"} \
       ${QC_RULES:+--qc-rules "$QC_RULES"} ${QC_EXCLUDE:+--qc-exclude "$QC_EXCLUDE"} \
@@ -1937,7 +1946,8 @@ chk_mod_report() {
   chk_py matplotlib
   chk_script srna_report.py
   chk_script srna_qc.py
-  if [[ -n "${REPORT_MIRNA_MARKERS:-}" ]]; then chk_file REPORT_MIRNA_MARKERS "$REPORT_MIRNA_MARKERS"
+  if [[ "$(mirna_markers)" == none ]]; then :
+  elif [[ -n "${REPORT_MIRNA_MARKERS:-}" ]]; then chk_file REPORT_MIRNA_MARKERS "$REPORT_MIRNA_MARKERS"
   else chk_script mirna_origin_markers.tsv; fi
   [[ -n "${RNA_QC:-}" ]] && chk_file RNA_QC "$RNA_QC"
   return 0
@@ -2027,6 +2037,7 @@ run_cohort() {
   (
     set -euo pipefail
     activate_env "${ENV_REPORT:-${ENV_DEFAULT:-}}"
+    markers=$(mirna_markers)
     python3 "$SCRIPTS_DIR/srna_cohort.py" --outdir "$OUTDIR" --samples "$SAMPLESHEET" --cohort-dir "$CDIR" \
       --sample-type "${SAMPLE_TYPE:-stool}" \
       ${COHORT_METADATA:+--metadata "$COHORT_METADATA"} \
@@ -2042,7 +2053,7 @@ run_cohort() {
       --nmds "${COHORT_NMDS-genus,fn_kegg_pathway,mirna,rfam_family}" --nmds-starts "${COHORT_NMDS_STARTS:-10}" \
       ${COHORT_MODEL:+--model "$COHORT_MODEL"} ${COHORT_MODEL_NOTES:+--model-notes "$COHORT_MODEL_NOTES"} --cohort-name "${COHORT_NAME:-cohort}" \
       ${COHORT_BLOCK:+--block "$COHORT_BLOCK"} ${COHORT_REFERENCE:+--reference "$COHORT_REFERENCE"} \
-      ${REPORT_MIRNA_MARKERS:+--mirna-markers "$REPORT_MIRNA_MARKERS"} \
+      ${markers:+--mirna-markers "$markers"} --host-name "${HOST_NAME:-human}" \
       --permutations "${COHORT_PERMUTATIONS:-999}" ${REPORT_HTML:+--html} \
       ${mstyle:+--methods-style "$mstyle" --methods-params "$CDIR/cohort.params.tsv" --methods-envs "$(methods_envs)"} \
       ${mstyle:+${METHODS_RESOURCES:+--methods-resources "$METHODS_RESOURCES"}} > "$L/cohort.log" 2>&1

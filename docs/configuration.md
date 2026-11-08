@@ -66,6 +66,22 @@ ASSEMBLY_RECOUNT_ONLY=1 RRNA_EXCLUDE_RFAM=1 ./srna_pipeline.sh -s samples.tsv -o
 | `HOST_SHORT_MISMATCHES` | 0 | … with this many mismatches |
 | `HOST_MISMATCHES` | 0 | mismatches for reads ≥ `HOST_SHORT_LEN` (1 = more tolerant, more chance hits) |
 | `HOST_ASSEMBLY_RESCUE` | 1 | human hits matching the contigs as well → non-human |
+| `HOST_NAME` | `human` | host word used in reports and the automated Methods |
+| `HOST_MIRNA_PREFIX` | `hsa` | miRBase species prefix of the host miRNAs (`mmu` for mouse) |
+
+### Other hosts and sample types
+
+The pipeline is developed and validated on human stool. For another host (e.g. mouse), point `HOST_GENOME_FA`,
+`HOST_TX_FA` and the `IDX_HSA_*` indices (next section) at that species' genome, transcripts, mature miRNAs, tRNAs,
+rRNAs and other ncRNAs, and set `HOST_NAME=mouse` and `HOST_MIRNA_PREFIX=mmu`. Reports and Methods then name the
+host instead of "human" (module and metric names stay `human`). The miRNA origin markers
+(`scripts/mirna_origin_markers.tsv`) are human sets and are switched off for a non-human host unless
+`REPORT_MIRNA_MARKERS` names a marker file for that species. Update the host entries of
+`scripts/methods_resources.tsv` so that the Methods cite the right references.
+
+Other body sites (oral, nasal, skin) can in principle be run the same way with `SAMPLE_TYPE` set accordingly, but
+they are not validated: host fractions are much higher, biomass is low, kit contaminants weigh more, and the
+assembly-based modules depend on a usable metagenome assembly. Check the QC rules for such data.
 
 ## human
 

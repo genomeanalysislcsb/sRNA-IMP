@@ -17,6 +17,7 @@ Text helpers (used by srna_report.py, srna_cohort.py and srna_methods.py):
   D.assembly   "co-assembly of the metagenomic and metatranscriptomic reads" or "assembly of the metagenomic reads"
   D.libraries  "small RNA libraries (intracellular and extracellular fractions)" or "small RNA libraries"
   D.sample_type  free label of the sample material (SAMPLE_TYPE, default "stool")
+  D.host       host word (HOST_NAME, default "human")
 """
 import glob
 import os
@@ -42,11 +43,12 @@ def _given(v):
 
 
 class Design:
-    def __init__(self, types=(), metaT=False, metaG=False, sample_type="stool"):
+    def __init__(self, types=(), metaT=False, metaG=False, sample_type="stool", host="human"):
         self.types = list(types)
         self.metaT = bool(metaT)
         self.metaG = bool(metaG)
         self.sample_type = sample_type or "stool"
+        self.host = (host or "human").strip()
 
     @property
     def int_ext(self):
@@ -87,11 +89,11 @@ class Design:
         return "small RNA libraries"
 
     def __repr__(self):
-        return "Design(types=%s, int_ext=%s, metaT=%s, metaG=%s, sample_type=%s)" % (
-            self.types, self.int_ext, self.metaT, self.metaG, self.sample_type)
+        return "Design(types=%s, int_ext=%s, metaT=%s, metaG=%s, sample_type=%s, host=%s)" % (
+            self.types, self.int_ext, self.metaT, self.metaG, self.sample_type, self.host)
 
 
-def design(outdir="", types=None, samples=None, sample_type="stool"):
+def design(outdir="", types=None, samples=None, sample_type="stool", host="human"):
     """Design of a run: from the inputs.tsv of all (or the given) samples under outdir.
     types: library types to use instead of the ones found; samples: sample IDs to restrict to."""
     found, metaT, metaG = [], False, False
@@ -109,4 +111,4 @@ def design(outdir="", types=None, samples=None, sample_type="stool"):
             metaG = metaG or _given(d.get("metaG_features")) or _given(d.get("metaG_contigs"))
     t = [x for x in (types or found) if x]
     t.sort(key=lambda x: (x not in FRACTIONS, FRACTIONS.index(x) if x in FRACTIONS else 0, x))
-    return Design(t, metaT, metaG, sample_type)
+    return Design(t, metaT, metaG, sample_type, host)

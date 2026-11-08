@@ -230,6 +230,42 @@ DESIGN = None
 KEEP_FRACTION = ("long-RNA fraction", "cell-free fraction", "microbial fraction", "cell fraction")
 
 
+def host_words(t):
+    """'human' -> HOST_NAME (and 'non-human' -> 'non-host') when the host is not human"""
+    D = DESIGN
+    if D is None or D.host == "human" or not isinstance(t, str) or not t:
+        return t
+    t = re.sub(r"\b([Nn])on-human\b", r"\1on-host", t)
+    t = re.sub(r"(?<![,/])\bhuman\b(?![,/_])", D.host, t)     # not the module name in lists (split,human,...)
+    return re.sub(r"\bHuman\b", D.host[:1].upper() + D.host[1:], t)
+
+
+def host_texts(fig):
+    """apply host_words to every text of a finished page (titles, labels, ticks, legends, table cells)"""
+    if DESIGN is None or DESIGN.host == "human":
+        return
+    import matplotlib.text as mtext
+    import matplotlib.ticker as mticker
+    for t in fig.findobj(mtext.Text):
+        s = t.get_text()
+        n = host_words(s)
+        if n != s:
+            t.set_text(n)
+    import matplotlib.table as mtable
+    for ax in fig.axes:                              # table cells are not children in the artist tree
+        for tb in [c for c in ax.get_children() if isinstance(c, mtable.Table)]:
+            for cell in tb.get_celld().values():
+                s = cell.get_text().get_text()
+                n = host_words(s)
+                if n != s:
+                    cell.get_text().set_text(n)
+    for ax in fig.axes:                              # tick labels are made at draw time from the formatter
+        for axis in (ax.xaxis, ax.yaxis):
+            f = axis.get_major_formatter()
+            if isinstance(f, mticker.FixedFormatter):
+                f.seq = [host_words(x) if isinstance(x, str) else x for x in f.seq]
+
+
 def adapt_words(t):
     """'fraction' -> 'library type' when the run has no Int/Ext fractions; 'metaG / metaT' -> 'metaG' without metaT.
     Phrases where 'fraction' means something else (long-RNA fraction of the extraction, microbial fraction) stay."""
@@ -247,6 +283,7 @@ def adapt_words(t):
         t = re.sub(r"\bfraction\b", "library type", t)
         for k, ph in keep.items():
             t = t.replace(k, ph)
+    t = host_words(t)
     if not D.metaT:
         for a_ in ("metaG / metaT", "metaT / metaG", "metaT/metaG", "metaG/metaT", "metaG and metaT", "metaT and metaG"):
             t = t.replace(a_, "metaG")
@@ -261,6 +298,7 @@ def explain_text(key):
     if D is None or key not in EXPLAIN:
         return t
     stool = D.sample_type.lower() in ("stool", "feces", "faeces", "fecal", "faecal")
+    t = host_words(t)
     if key == "overview" and not D.int_ext:
         t = ("Small RNA library of a %s sample. %sThe read fate shows where reads are removed and how the rest is "
              "assigned; shares are relative (compositional), not absolute amounts." % (
@@ -804,6 +842,7 @@ MIRNA_ORIGIN_DEFAULT = [
     ("muscle (diet?)", "#CC79A7", ["miR-1-3p", "miR-206", "miR-133a-3p", "miR-133b"], []),
 ]
 MIRNA_ORIGIN = []           # (group, color, [miRNAs], [references]); filled by load_markers()
+MIRNA_PREFIX_RE = r"^[a-z]{3,4}-"   # miRBase species prefix (hsa-, mmu-, ...), dropped from marker and miRNA names
 MIRNA_GENERAL_REFS = []     # references of "_..." rows
 MIRNA_MARKER_SOURCE = "built-in default"
 
@@ -812,6 +851,9 @@ def load_markers(path):
     """read the marker TSV (group, color, mirnas, references); fall back to the built-in list"""
     global MIRNA_ORIGIN, MIRNA_GENERAL_REFS, MIRNA_MARKER_SOURCE
     MIRNA_ORIGIN, MIRNA_GENERAL_REFS = [], []
+    if path == "none":                               # no origin markers (e.g. a non-human host)
+        MIRNA_MARKER_SOURCE = "none"
+        return
     if path and os.path.exists(path):
         palette = ["#009E73", "#D55E00", "#0072B2", "#CC79A7", "#E69F00", "#56B4E9", "#F0E442"]
         for r in read_tsv(path):
@@ -822,7 +864,7 @@ def load_markers(path):
             if g.startswith("_"):
                 MIRNA_GENERAL_REFS.append((g.lstrip("_").strip(), refs))
                 continue
-            mirnas = [re.sub(r"^hsa-", "", x.strip()) for x in (r.get("mirnas") or "").split(",") if x.strip()]
+            mirnas = [re.sub(MIRNA_PREFIX_RE, "", x.strip()) for x in (r.get("mirnas") or "").split(",") if x.strip()]
             color = (r.get("color") or "").strip() or palette[len(MIRNA_ORIGIN) % len(palette)]
             MIRNA_ORIGIN.append((g, color, mirnas, refs))
         MIRNA_MARKER_SOURCE = path
@@ -845,7 +887,7 @@ def mirna_origin(rows):
     """human miRNA counts -> {group: reads}, plus 'other'"""
     cnt = {}
     for r in rows:
-        name = re.sub(r"^hsa-", "", r.get("feature", ""))
+        name = re.sub(MIRNA_PREFIX_RE, "", r.get("feature", ""))
         cnt[name] = cnt.get(name, 0) + num(r.get("count"))
     out, used = {}, set()
     for g, _c, markers, _r in MIRNA_ORIGIN:
@@ -856,7 +898,7 @@ def mirna_origin(rows):
 
 
 def origin_of(feature):
-    name = re.sub(r"^hsa-", "", feature)
+    name = re.sub(MIRNA_PREFIX_RE, "", feature)
     for g, _c, markers, _r in MIRNA_ORIGIN:
         if name in markers:
             return g.split(" ")[0]
@@ -2040,6 +2082,7 @@ class Sink:
         if self.section:
             fig.text(0.97, 0.972, self.section, ha="right", va="top", fontsize=8, color="#777")
         finalize(fig)
+        host_texts(fig)
         self.pdf.savefig(fig)
         if self.html and not getattr(fig, "_no_html", False):
             buf = io.BytesIO()
@@ -2196,6 +2239,7 @@ def main():
                     "added as the last pages")
     ap.add_argument("--mqc-dir", default="", help="also write MultiQC custom-content tables here")
     ap.add_argument("--sample-type", default="stool", help="sample material shown in the explanations (SAMPLE_TYPE)")
+    ap.add_argument("--host-name", default="human", help="host word in titles and explanations (HOST_NAME) [human]")
     a = ap.parse_args()
 
     base = os.path.join(a.outdir, a.sample)
@@ -2217,7 +2261,7 @@ def main():
         sys.exit("[report] %s: no sRNA types found" % a.sample)
     global DESIGN
     from srna_design import design
-    DESIGN = design(a.outdir, types, [a.sample], a.sample_type)
+    DESIGN = design(a.outdir, types, [a.sample], a.sample_type, a.host_name)
     load_markers(a.mirna_markers or os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                                  "mirna_origin_markers.tsv"))
     load_rfam_family(a.rfam_family)

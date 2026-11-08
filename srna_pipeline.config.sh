@@ -93,6 +93,12 @@ HOST_SHORT_MISMATCHES=0       # ... are mapped to the host with bowtie -v 0
 # <= mismatches are kept as non-human (needs module prep before split).
 HOST_ASSEMBLY_RESCUE=1
 
+# Host species. The host references are the paths above (HOST_GENOME_FA, HOST_TX_FA) and IDX_HSA_* below;
+# for another host (e.g. mouse) point them at that species' genome, transcripts, mature miRNAs, tRNAs, rRNAs and
+# other ncRNAs, and set:
+HOST_NAME=${HOST_NAME-human}              # word used in reports and Methods ("human", "mouse", ...)
+HOST_MIRNA_PREFIX=${HOST_MIRNA_PREFIX-hsa} # miRBase species prefix of the host miRNAs (hsa, mmu, rno, ...)
+
 # Sub-directory of Analysis/<type>/ for the assembly-mapping results.
 # Set to "" to write them directly into Analysis/<type>/ (old layout).
 ASSEMBLY_SUBDIR=${ASSEMBLY_SUBDIR-assembly}
@@ -219,7 +225,8 @@ COMPARE_BIN_BASIS=contig,cds,no_rrna   # bin count bases; first = bins.tsv, othe
 
 # ------------------------- report (--report) ------------------------
 REPORT_HTML=1                 # also write <sample>.report.html (same pages, self-contained); "" = PDF only
-REPORT_MIRNA_MARKERS=""          # TSV of human miRNA origin markers + references; "" = scripts/mirna_origin_markers.tsv
+REPORT_MIRNA_MARKERS=""          # TSV of host miRNA origin markers + references; "" = scripts/mirna_origin_markers.tsv
+                                 # (human sets; with another HOST_MIRNA_PREFIX the default is none); none = off
 RNA_QC=""                     # wet-lab RNA QC TSV (sample, sample_id, type, lRNA_RIN, ... ; type = sRNA-Int/sRNA-Ext), e.g. rna_qc.tsv; "" = none
 QC_RULES="${QC_RULES-}"        # QC rules TSV (thresholds -> PASS / WARN / FAIL per library); "" = scripts/qc_rules.tsv
 QC_EXCLUDE="${QC_EXCLUDE-}"    # manual QC decisions: sample, type (or *), level (FAIL/WARN/PASS), reason; "" = none

@@ -834,7 +834,7 @@ def sample_metrics(outdir, s, t):
     tot = sum(vec["mirna"].values())
     for g, _c, mirs, _r in R.MIRNA_ORIGIN:
         ms = set(mirs)
-        v = sum(c for k, c in vec["mirna"].items() if k.replace("hsa-", "") in ms)
+        v = sum(c for k, c in vec["mirna"].items() if re.sub(R.MIRNA_PREFIX_RE, "", k) in ms)
         m["miRNA_marker_%s" % "_".join(g.replace("/", " ").split())] = frac(v, tot) if tot >= 20 else float("nan")
     return m, vec
 
@@ -2772,7 +2772,7 @@ def page_mirna_top(pdf, C, top=12):
                 ax.scatter([gi + (jit.random() - 0.5) * 0.3 for _ in v], v, s=6, color=col, alpha=0.6, lw=0, zorder=3)
             ax.set_xticks(range(len(C.groups)))
             ax.set_xticklabels(C.groups, fontsize=7)
-            name = feats[j].replace("hsa-", "")
+            name = re.sub(R.MIRNA_PREFIX_RE, "", feats[j])
             tr = tests.get(feats[j])
             p, q = (tr[3], tr[4]) if tr else (float("nan"), float("nan"))
             sig = isnum(q) and q < SIG_Q
@@ -3338,6 +3338,7 @@ def main():
                                                   "metrics such as qc_lRNA_RIN); '' = none")
     ap.add_argument("--cohort-name", default="cohort", help="name of the cohort, used as report title [cohort]")
     ap.add_argument("--sample-type", default="stool", help="sample material shown in the explanations (SAMPLE_TYPE)")
+    ap.add_argument("--host-name", default="human", help="host word in titles and explanations (HOST_NAME) [human]")
     ap.add_argument("--model-notes", default="", help="short question per model, ';'-separated, 'M9=PD motor "
                     "severity; M13=RA immunosuppressants' or in model order (contents of the models page)")
     ap.add_argument("--no-heterogeneity", action="store_true",
@@ -3379,7 +3380,7 @@ def main():
     load_term_names(a.term_names)
     C = Cohort(a)
     from srna_design import design
-    R.DESIGN = design(a.outdir, C.types, sorted(C.samples), a.sample_type)
+    R.DESIGN = design(a.outdir, C.types, sorted(C.samples), a.sample_type, a.host_name)
     adapt_sections(R.DESIGN)
     d = a.cohort_dir or os.path.join(a.outdir, "Cohort")
     os.makedirs(os.path.join(d, "stats"), exist_ok=True)
