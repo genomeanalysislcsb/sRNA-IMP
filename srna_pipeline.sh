@@ -371,6 +371,26 @@ ensure_host_index() {
   log "  $label index: $HOST_IDX"
 }
 
+# ensure_trna_cca_index -> sets HOST_IDX: mature host tRNAs with the post-transcriptional 3' CCA (from the
+# IDX_HSA_TRNA index), so that 3' tRNA fragments and halves ending in CCA are recognised as host
+# (they are in neither the genome nor the transcripts). Built once in HOST_INDEX_TMPDIR.
+ensure_trna_cca_index() {
+  local d=$HOST_INDEX_TMPDIR fa
+  mkdir -p "$d"
+  fa=$d/host_trna_mature_cca.fa
+  acquire_lock "$fa.lock" 7200
+  if [[ ! -s "$fa" ]]; then
+    bowtie-inspect -a 0 "$IDX_HSA_TRNA" 2> "$d/host_trna_mature_cca.log" | awk '
+      /^>/ { if (h != "") { print h; print s (s ~ /CCA$/ ? "" : "CCA") } h = $1 "_CCA"; s = ""; next }
+      { s = s toupper($0) }
+      END { if (h != "") { print h; print s (s ~ /CCA$/ ? "" : "CCA") } }' > "$fa.part" \
+      && [[ -s "$fa.part" ]] && mv "$fa.part" "$fa" \
+      || { release_lock "$fa.lock"; die "could not write mature tRNAs with CCA from IDX_HSA_TRNA=$IDX_HSA_TRNA"; }
+  fi
+  release_lock "$fa.lock"
+  ensure_host_index "$fa" "" "host mature tRNAs (+CCA)"
+}
+
 # bowtie index of the sample assembly (shared by split + novel, built once)
 ensure_assembly_bowtie_index() {
   local LOCK=$ASSEMBLY_DIR/.bowtie.lock
@@ -483,10 +503,14 @@ module_split() {
 
   log "checking host indices ..."
   ensure_host_index "$HOST_GENOME_FA" "${HOST_GENOME_IDX:-}" "host genome"
-  local GIDX=$HOST_IDX TIDX=""
+  local GIDX=$HOST_IDX TIDX="" RIDX=""
   if [[ -n "${HOST_TX_FA:-}" ]]; then
     ensure_host_index "$HOST_TX_FA" "${HOST_TX_IDX:-}" "host transcriptome"
     TIDX=$HOST_IDX
+  fi
+  if [[ "${HOST_TRNA_CCA:-1}" -eq 1 && -n "${IDX_HSA_TRNA:-}" ]]; then
+    ensure_trna_cca_index
+    RIDX=$HOST_IDX
   fi
 
   local G_UN=$TEMPDIR/genome_unmapped.fastq HG=$TEMPDIR/host_genome.fastq
@@ -535,6 +559,16 @@ module_split() {
   else
     log "no HOST_TX_FA configured — transcriptome step skipped"
     mv "$G_UN" "$NONHOST"; : > "$HT"
+  fi
+  local HTR=$TEMPDIR/host_trna_cca.fastq N_TRNA_CCA=0
+  : > "$HTR"
+  if [[ -n "$RIDX" ]]; then
+    log "mapping the remaining reads to mature host tRNAs with 3' CCA (HOST_TRNA_CCA=1) ..."
+    host_map "$RIDX" "$NONHOST" "$HTR" "$NONHOST.trna_un" host_trna_cca
+    mv "$NONHOST.trna_un" "$NONHOST"
+    N_TRNA_CCA=$(fastq_reads "$HTR")
+    log "  $N_TRNA_CCA reads on mature tRNAs with CCA -> host"
+    cat "$HTR" >> "$HT"
   fi
 
   local HUMAN_ALL=$TEMPDIR/human_all.fastq RESCUED=$TEMPDIR/rescued.fastq
@@ -585,6 +619,7 @@ module_split() {
     echo -e "$PREFIX\tbelow_host_min_len_${HMIN}nt\t$N_TOOSHORT"
     echo -e "$PREFIX\thost_genome_mapped\t$(fastq_reads "$HG")"
     echo -e "$PREFIX\thost_tx_mapped\t$(fastq_reads "$HT")"
+    echo -e "$PREFIX\thost_trna_cca_mapped\t$N_TRNA_CCA"
     echo -e "$PREFIX\thost_rescued_by_assembly\t$N_RESCUED"
     echo -e "$PREFIX\thuman_total\t$(fastq_reads "$HUMANREADS_RAW")"
     echo -e "$PREFIX\tnonhuman\t$(fastq_reads "$NONHUMANREADS.fastq.gz")"

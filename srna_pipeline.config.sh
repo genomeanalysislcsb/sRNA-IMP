@@ -92,6 +92,10 @@ HOST_SHORT_MISMATCHES=0       # ... are mapped to the host with bowtie -v 0
 # Host-mapped reads that also map to the sample's own assembly with
 # <= mismatches are kept as non-human (needs module prep before split).
 HOST_ASSEMBLY_RESCUE=1
+# Mature host tRNAs with the post-transcriptional 3' CCA (built from IDX_HSA_TRNA) as a third host reference after
+# genome and transcripts: 3' tRNA fragments and halves end in CCA, which is in neither (simulation benchmark: human
+# tRNA recall 45 -> 90-96 % for 3' fragments and halves, no extra microbial reads called human). 0 = off.
+HOST_TRNA_CCA=${HOST_TRNA_CCA-1}
 
 # Host species. The host references are the paths above (HOST_GENOME_FA, HOST_TX_FA) and IDX_HSA_* below;
 # for another host (e.g. mouse) point them at that species' genome, transcripts, mature miRNAs, tRNAs, rRNAs and

@@ -321,6 +321,9 @@ def processing_sections(X, types):
             if P("HOST_SHORT_MISMATCHES", "0") == P("HOST_MISMATCHES", "0") else
             "allowing %s mismatches for reads shorter than %s nt and %s for longer reads" % (
                 P("HOST_SHORT_MISMATCHES", "0"), P("HOST_SHORT_LEN", "22"), P("HOST_MISMATCHES", "0"))),
+        ("Reads still unmapped were aligned with the same settings to the mature human tRNAs with their "
+         "post-transcriptional 3′ CCA (%s), which is absent from the genome and the transcripts, so that 3′ tRNA "
+         "fragments and halves were assigned to the host." % X.rc("hsa_trna") if X.on("HOST_TRNA_CCA") else ""),
         ("Reads with a human hit that matched the sample's own contigs with no more mismatches than the human "
          "reference were reassigned to the microbial fraction, so that conserved short sequences were not "
          "attributed to the host." if X.on("HOST_ASSEMBLY_RESCUE") else ""),
