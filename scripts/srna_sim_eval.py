@@ -117,6 +117,7 @@ def main():
     if hum is not None and trimmed is not None:
         tp = fp = fn = 0
         fp_cls = collections.Counter()
+        h_all, h_miss = collections.Counter(), collections.Counter()   # human reads by (class, length bin)
         n_micro = collections.Counter()
         for r in trimmed:
             t = truth.get(r)
@@ -125,6 +126,12 @@ def main():
             is_h, call_h = t["origin"] == "human", r in hum
             if not is_h:
                 n_micro[t["class"]] += 1
+            if is_h:
+                L = int(t["insert_len"])
+                lb = "<20" if L < 20 else "20-24" if L <= 24 else "25-34" if L <= 34 else ">=35"
+                h_all[(t["class"], lb)] += 1
+                if not call_h:
+                    h_miss[(t["class"], lb)] += 1
             if is_h and call_h:
                 tp += 1
             elif call_h:
@@ -137,6 +144,9 @@ def main():
         M.append(("split", "microbial_called_human", fp))
         for c, n in fp_cls.most_common():
             M.append(("split", "microbial_called_human_%s" % c, "%d (%.4f%% of %s)" % (n, 100.0 * n / max(n_micro[c], 1), c)))
+        for k in sorted(h_all, key=lambda k: (k[0], ["<20", "20-24", "25-34", ">=35"].index(k[1]))):
+            M.append(("split", "human_recall_%s_%snt" % k, "%.3f (%d of %d missed)" % (
+                1 - h_miss[k] / h_all[k], h_miss[k], h_all[k])))
 
     # ---- human miRNAs
     called = read_counts(os.path.join(ana, "human", "mirna", "%s.human.mirna.counts.tsv" % S))
@@ -205,6 +215,13 @@ def main():
                 found += bool(hit)
                 rows.append((fid, ctg, s, e, st, cls, reads[fid], len(hit)))
             supported = [r for r in rows if r[6] >= 10]
+            for cls in sorted({r[5] for r in supported}):
+                for lo, hi in ((0, 100), (100, 250), (250, 10 ** 9)):
+                    sub = [r for r in supported if r[5] == cls and lo <= r[3] - r[2] < hi]
+                    if sub:
+                        M.append(("novel", "recovered_ge10_%s_%s" % (cls, "%d-%dnt" % (lo, hi) if hi < 10 ** 9 else
+                                                                     ">=%dnt" % lo),
+                                  "%d of %d" % (sum(1 for r in sub if r[7]), len(sub))))
             M.append(("novel", "candidates", len(cands)))
             M.append(("novel", "hidden_loci", len(hid)))
             M.append(("novel", "hidden_loci_recovered", "%d (%.3f)" % (found, found / max(len(hid), 1))))

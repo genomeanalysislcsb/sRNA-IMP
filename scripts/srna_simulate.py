@@ -250,6 +250,8 @@ def main():
                     help="share of ncRNA / regulatory features removed from the GFF [0.30]")
     ap.add_argument("--min-contig", type=int, default=500, help="contigs shorter than this are not used [500]")
     ap.add_argument("--no-errors", action="store_true", help="no sequencing errors")
+    ap.add_argument("--human-skew", type=float, default=1.5,
+                    help="sigma of the log-normal abundance of the human references (miRNAs etc.); 0 = uniform [1.5]")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--sample", default="SIM01")
     ap.add_argument("--type", default="sRNA")
@@ -309,7 +311,9 @@ def main():
 
     human = {"miRNA": read_fasta(a.human_mirna), "tRNA": read_fasta(a.human_trna),
              "rRNA": read_fasta(a.human_rrna), "other": read_fasta(a.human_other)}
-    hpick = {k: Picker(list(v.items()), [1.0] * len(v), rng) for k, v in human.items() if v}
+    # a few dominant human miRNAs / ncRNAs and a long tail, as in real libraries (log-normal weights)
+    hpick = {k: Picker(list(v.items()), [rng.lognormvariate(0, a.human_skew) if a.human_skew > 0 else 1.0
+                                         for _ in v], rng) for k, v in human.items() if v}
     hmix = {k: v for k, v in HUMAN_MIX.items() if k in hpick}
     hclasses, hweights = list(hmix), list(hmix.values())
 
