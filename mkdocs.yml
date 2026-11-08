@@ -36,6 +36,7 @@ nav:
   - Reference:
       - Output files: outputs.md
       - Configuration parameters: configuration.md
+      - Simulation benchmark: benchmark.md
   - Quality control & troubleshooting: qc.md
 
 markdown_extensions:
