@@ -114,8 +114,9 @@ def tax_tail(classification):
 def table(ax, rows, col_labels=None, col_widths=None, fontsize=7, title=None, header_color="#e8eef5", left=(0,), rowscale=1.25):
     ax.axis("off")
     title = adapt_words(title)
-    if col_labels:
-        col_labels = [adapt_words(c) for c in col_labels]
+    if col_labels:                                   # a bare "fraction" column header -> "type" (narrow columns)
+        col_labels = [("type" if c == "fraction" and DESIGN is not None and not DESIGN.int_ext else adapt_words(c))
+                      for c in col_labels]
     if title:
         ax.set_title(title, loc="left", fontweight="bold")
     if not rows:
