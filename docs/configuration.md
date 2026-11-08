@@ -132,6 +132,7 @@ assembly-based modules depend on a usable metagenome assembly. Check the QC rule
 | `NOVEL_MERGEDIST` | 10 | max. gap within a cluster |
 | `NOVEL_MINLEN`, `NOVEL_MAXLEN` | 18, 250 | cluster length window |
 | `NOVEL_MINREADS` | 10 | min. supporting reads (multi-mappers weighted 1/hits) |
+| `NOVEL_EXCLUDE_ANNOTATED_TYPES` | `tRNA,rRNA,tmRNA,ncRNA` | GFF feature types used by `NOVEL_EXCLUDE_ANNOTATED_MULTI` |
 | `NOVEL_EXCLUDE_ANNOTATED_MULTI` | 0 | 1 = reads with any alignment on an annotated tRNA / rRNA / tmRNA / ncRNA (same strand) do not support novel loci, so that their multi-mapping alignments on unannotated or partial copies of the same RNA do not become candidates |
 | `CMSCAN_OPTS` | `--rfam --cut_ga` | cmscan options for the candidates |
 | `RUN_ARAGORN`, `RUN_TRNASCAN`, `RUN_CMSCAN`, `RUN_RNAFOLD` | 1, 0, 1, 1 | optional tools |
