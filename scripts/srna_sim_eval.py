@@ -229,6 +229,28 @@ def main():
                 sum(1 for r in supported if r[7]), len(supported))))
             on_hidden = sum(1 for c in cands if any(h[1] == c[0] and h[2] < c[2] and c[1] < h[3] for h in hid))
             M.append(("novel", "candidates_on_hidden_loci", on_hidden))
+            # what the other candidates are: the dominant truth class of the reads on them (same strand)
+            hid_by = collections.defaultdict(list)
+            for h in hid:
+                hid_by[h[1]].append(h)
+            need = {c[0] for c in cands}
+            rd = collections.defaultdict(list)
+            for t in truth.values():
+                if t["origin"] == "microbial_assembled" and t["contig"] in need:
+                    rd[t["contig"]].append((int(t["start"]), int(t["end"]), t["strand"], t["class"]))
+            dom, lens = collections.Counter(), collections.Counter()
+            for c in cands:
+                if any(h[2] < c[2] and c[1] < h[3] for h in hid_by[c[0]]):
+                    continue
+                k = collections.Counter(r[3] for r in rd[c[0]] if r[0] < c[2] and c[1] < r[1] and r[2] == c[3])
+                dom[k.most_common(1)[0][0] if k else "no_truth_reads"] += 1
+                L = c[2] - c[1]
+                lens["<100" if L < 100 else "100-250" if L < 250 else ">=250"] += 1
+            for k, n in dom.most_common():
+                M.append(("novel", "other_candidates_mostly_%s" % k, n))
+            for k in ("<100", "100-250", ">=250"):
+                if lens[k]:
+                    M.append(("novel", "other_candidates_len_%snt" % k, lens[k]))
             with open(a.out + ".novel.tsv", "w") as fh:
                 fh.write("feature\tcontig\tstart\tend\tstrand\tclass\ttruth_reads\tcandidates_overlapping\n")
                 for r in rows:
