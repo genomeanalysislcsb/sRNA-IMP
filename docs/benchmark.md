@@ -70,3 +70,23 @@ Per-miRNA, per-feature and per-locus tables: `<out>.mirna.tsv`, `<out>.features.
 
 For a parameter sweep, simulate once and run the pipeline into separate output folders with different configs
 (e.g. `HOST_MIN_LEN`, `HOST_MISMATCHES`, `HOST_ASSEMBLY_RESCUE`), then score each run against the same truth.
+
+## Comparison with sMETASeq
+
+`scripts/smetaseq_reimpl.sh` re-implements [sMETASeq](https://github.com/MjelleLab/sMETASeq) (Mjelle et al. 2020,
+iScience 23:101131): cutadapt (adapter only, `-m 1`), bowtie2 `-k10` to GRCh38, htseq-count on miRBase and
+RNAcentral GFFs, kraken2 on the unmapped reads. The commands and options are those of the published scripts; the
+only change is the input file name of bowtie2, which in the published scripts does not match the cutadapt output.
+Databases as in the sMETASeq README (GRCh38 no_alt bowtie2 index, miRBase `hsa.gff3`, RNAcentral GRCh38 GFF3 with
+`chr` prefix, a kraken2 standard database); tools from bioconda (`cutadapt bowtie2 htseq kraken2`).
+
+```bash
+scripts/smetaseq_reimpl.sh -i bench/sim/SIM01.fastq.gz -o bench/smetaseq/SIM01 -t 16 \
+  -x GCA_000001405.15_GRCh38_no_alt_analysis_set.fna.bowtie_index -m hsa.gff3 \
+  -r homo_sapiens.GRCh38.chr.gff3 -k k2_standard
+python3 scripts/srna_sim_eval.py --truth bench/sim/SIM01.truth.tsv.gz --outdir . --sample SIM01 \
+  --smetaseq bench/smetaseq/SIM01 --out bench/sim/SIM01.smetaseq.eval
+```
+
+With `--smetaseq` the evaluation scores the trimmed reads, the host calls (reads mapped to GRCh38) and the miRNA
+counts (`PREFIX.miRBase.csv`) against the same truth; sMETASeq has no assembly-based outputs.

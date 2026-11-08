@@ -63,6 +63,33 @@ def spearman(a, b):
     return num / den if den else float("nan")
 
 
+def sam_mapped(path):
+    """read names with at least one alignment in a SAM file (sMETASeq: host = mapped to GRCh38)"""
+    ids = set()
+    if not os.path.exists(path):
+        return None
+    with opener(path) as fh:
+        for line in fh:
+            if line.startswith("@"):
+                continue
+            f = line.split("\t", 2)
+            if not int(f[1]) & 4:
+                ids.add(f[0])
+    return ids
+
+
+def htseq_counts(path):
+    """htseq-count output (name<TAB>count, '__' summary lines skipped)"""
+    out = collections.Counter()
+    if os.path.exists(path):
+        with open(path) as fh:
+            for line in fh:
+                f = line.rstrip("\n").split("\t")
+                if len(f) == 2 and not f[0].startswith("__"):
+                    out[f[0]] += float(f[1])
+    return out
+
+
 def read_counts(path, key="feature", val="count"):
     out = collections.Counter()
     for p in glob.glob(path):
@@ -87,6 +114,8 @@ def main():
     ap.add_argument("--type", default="sRNA")
     ap.add_argument("--min-len", type=int, default=18, help="MINLEN of the run [18]")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--smetaseq", default="", help="score an sMETASeq run instead (smetaseq_reimpl.sh -o PREFIX): "
+                    "trimmed reads, host = reads mapped to GRCh38, miRNA counts from PREFIX.miRBase.csv")
     a = ap.parse_args()
     S, T = a.sample, a.type
     pre = os.path.join(a.outdir, S, "Preprocessing", T)
@@ -104,7 +133,8 @@ def main():
         M.append(("truth", "reads_" + o, n))
 
     # ---- qc
-    trimmed = fastq_ids(os.path.join(pre, "%s.trimmed.fastq.gz" % S))
+    SM = a.smetaseq
+    trimmed = fastq_ids(SM + ".cut.fastq" if SM else os.path.join(pre, "%s.trimmed.fastq.gz" % S))
     if trimmed is not None:
         dim = [r for r, t in truth.items() if t["origin"] == "dimer"]
         M.append(("qc", "dimers_removed", "%.4f" % (1 - sum(r in trimmed for r in dim) / max(len(dim), 1))))
@@ -113,7 +143,7 @@ def main():
         M.append(("qc", "reads_kept", len(trimmed)))
 
     # ---- split: human vs non-human
-    hum = fastq_ids(os.path.join(pre, "%s.human.fastq.gz" % S))
+    hum = sam_mapped(SM + ".mapped.cut.sam") if SM else fastq_ids(os.path.join(pre, "%s.human.fastq.gz" % S))
     if hum is not None and trimmed is not None:
         tp = fp = fn = 0
         fp_cls = collections.Counter()
@@ -149,8 +179,11 @@ def main():
                 1 - h_miss[k] / h_all[k], h_miss[k], h_all[k])))
 
     # ---- human miRNAs
-    called = read_counts(os.path.join(ana, "human", "mirna", "%s.human.mirna.counts.tsv" % S))
-    resc = read_counts(os.path.join(ana, "nonhuman", "mirna_like", "%s.mirna_like.human.counts.tsv" % S))
+    if SM:
+        called, resc = htseq_counts(SM + ".miRBase.csv"), collections.Counter()
+    else:
+        called = read_counts(os.path.join(ana, "human", "mirna", "%s.human.mirna.counts.tsv" % S))
+        resc = read_counts(os.path.join(ana, "nonhuman", "mirna_like", "%s.mirna_like.human.counts.tsv" % S))
     if called or resc:
         tot = called + resc
         tm = collections.Counter(t["feature"] for t in truth.values() if t["origin"] == "human" and t["class"] == "miRNA")
@@ -170,7 +203,7 @@ def main():
 
     # ---- assembly: feature counts vs truth
     fc = os.path.join(ana, "assembly", "%s.feature_counts.tsv" % S)
-    if os.path.exists(fc):
+    if os.path.exists(fc) and not SM:
         sense = read_counts(fc, "feature_id", "sense_reads")
         anti = read_counts(fc, "feature_id", "antisense_reads")
         ts, ta = collections.Counter(), collections.Counter()
@@ -188,7 +221,7 @@ def main():
                 fh.write("%s\t%d\t%.2f\t%d\t%.2f\n" % (n, ts[n], sense[n], ta[n], anti[n]))
 
     # ---- novel: hidden loci recovered
-    if a.hidden and os.path.exists(a.hidden):
+    if a.hidden and os.path.exists(a.hidden) and not SM:
         cands = []
         for p in glob.glob(os.path.join(ana, "novel", "%s.candidates.*.bed" % S)):
             if p.endswith(".full.bed"):
