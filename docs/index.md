@@ -37,7 +37,7 @@ flowchart TD
 
 ## sRNA types
 
-Each sample can have multiple small-RNA libraries (intracellular, extracellular); every library is one row of the sample sheet and is
+Each sample can have one or several small-RNA libraries (e.g. one library per stool sample, or an intracellular and an extracellular fraction); every library is one row of the sample sheet and is
 processed into its own sub-tree `<sample>/Analysis/<type>/`:
 
 | type | material |

@@ -22,7 +22,7 @@
 #   chimera   (optional, EXPERIMENTAL, not in the default list) chimeric reads = candidate RNA-RNA ligation products:
 #             split mapping on the contigs, arm annotation, pair enrichment, arm complementarity (RNAduplex)
 # Per sample (all types together, run with --compare):
-#   compare   sRNA-Ext vs sRNA-Int vs metaT vs metaG on features, contigs and bins
+#   compare   the sRNA library types vs metaT / metaG (whatever is given) on features, contigs and bins
 #             (any combination of >= 2 available sources)
 #
 # Directory layout (one tree per sample, one sub-tree per sRNA type):
@@ -1631,7 +1631,7 @@ run_report() {   # sample
   (
     set -euo pipefail
     activate_env "${ENV_REPORT:-${ENV_DEFAULT:-}}"
-    python3 "$SCRIPTS_DIR/srna_report.py" --outdir "$OUTDIR" --sample "$S" \
+    python3 "$SCRIPTS_DIR/srna_report.py" --outdir "$OUTDIR" --sample "$S" --sample-type "${SAMPLE_TYPE:-stool}" \
       --pdf "$RDIR/$S.report.pdf" ${REPORT_HTML:+--html "$RDIR/$S.report.html"} \
       ${REPORT_MIRNA_MARKERS:+--mirna-markers "$REPORT_MIRNA_MARKERS"} \
       ${RFAM_FAMILY_TXT:+--rfam-family "$RFAM_FAMILY_TXT"} \
@@ -2028,6 +2028,7 @@ run_cohort() {
     set -euo pipefail
     activate_env "${ENV_REPORT:-${ENV_DEFAULT:-}}"
     python3 "$SCRIPTS_DIR/srna_cohort.py" --outdir "$OUTDIR" --samples "$SAMPLESHEET" --cohort-dir "$CDIR" \
+      --sample-type "${SAMPLE_TYPE:-stool}" \
       ${COHORT_METADATA:+--metadata "$COHORT_METADATA"} \
       ${COHORT_ID_COL:+--id-col "$COHORT_ID_COL"} \
       --group-col "${COHORT_GROUP_COL-group}" \

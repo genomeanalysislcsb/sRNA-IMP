@@ -54,6 +54,11 @@ TMP_ROOT=${TMP_ROOT:-${SLURM_TMPDIR:-${TMPDIR:-/tmp}}}
 # symlink: symlink gzipped inputs instead of copying (saves space)
 STAGE_MODE=${STAGE_MODE:-copy}
 
+# ------------------------- study description -------------------------
+# sample material, used in the report explanations and the automated Methods (e.g. stool, saliva, skin swab).
+# Fraction-specific text (sRNA-Int vs sRNA-Ext) and metaT text appear only when the run has these data.
+SAMPLE_TYPE=${SAMPLE_TYPE:-stool}
+
 
 # ------------------------- general -----------------------------------
 MINLEN=${MINLEN:-18}          # minimum read length (cutadapt -m, assembly filter)

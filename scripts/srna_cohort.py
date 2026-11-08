@@ -2328,8 +2328,9 @@ def page_rna_classes(pdf, C):
         pdf.savefig(fig)
         plt.close(fig)
         fig = R.page(pdf, COHORT_NAME, "RNA classes and Rfam families between groups · %s" % t,
-                     "Kruskal-Wallis across %s, BH-FDR within each table; bold: q < %g; Int vs Ext of the same samples: "
-                     "paired page (class_* metrics)" % (", ".join(C.groups), SIG_Q))
+                     "Kruskal-Wallis across %s, BH-FDR within each table; bold: q < %g%s" % (
+                         ", ".join(C.groups), SIG_Q, "; Int vs Ext of the same samples: paired page (class_* metrics)"
+                         if R.DESIGN is None or R.DESIGN.int_ext else ""))
         # class tests (metrics class_*) and Rfam families
         keys = [k_ for k_ in C.metrics if k_.startswith("class_")]
         rows, flags = [], []
@@ -2681,8 +2682,10 @@ def page_integrity_summary(pdf, C):
     keys = [(k, lab, d) for k, lab, d in INTEGRITY_LABELS if k in C.metrics]
     if not keys:
         return False
-    fig = cpage(pdf, "RNA integrity — summary", "medians (IQR) per fraction; paired Int vs Ext; group test per "
-                "fraction; Spearman ρ with RIN; bold: q < %g" % SIG_Q, "integrity_sum")
+    ie = R.DESIGN is None or R.DESIGN.int_ext
+    u = "fraction" if ie else "library type"
+    fig = cpage(pdf, "RNA integrity — summary", "medians (IQR) per %s; %sgroup test per %s; Spearman ρ with RIN; "
+                "bold: q < %g" % (u, "paired Int vs Ext; " if ie else "", u, SIG_Q), "integrity_sum")
     paired = {r[0]: r for r in C.paired()}
     ivq = {}
     for r in C.integrity_vs_qc():
@@ -2695,7 +2698,9 @@ def page_integrity_summary(pdf, C):
         for t in C.types:
             row.append(_iqr([C.m[x].get(k, float("nan")) for x in C.keys(t)]))
         pr = paired.get(k)
-        if pr and isnum(pr[5]):
+        if not ie:
+            pass                                         # no Int vs Ext column without both fractions
+        elif pr and isnum(pr[5]):
             row.append("%s%s" % (fmt(pr[5], 2), stars(pr[5])))
             if isnum(pr[6]) and pr[6] < SIG_Q:
                 sig = True
@@ -2724,14 +2729,14 @@ def page_integrity_summary(pdf, C):
         rows.append(row)
         flags.append(sig)
     ax = fig.add_axes([0.02, 0.36, 0.96, 0.50])
-    hdr = ["indicator"] + ["median %s" % t.replace("sRNA-", "") for t in C.types] + ["Int vs Ext p"] + \
+    hdr = ["indicator"] + ["median %s" % t.replace("sRNA-", "") for t in C.types] + (["Int vs Ext p"] if ie else []) + \
           ["groups p %s" % t.replace("sRNA-", "") for t in C.types] + ["ρ RIN %s" % t.replace("sRNA-", "") for t in C.types]
     nt = len(C.types)
     R.table(ax, rows, hdr, fontsize=6.4, left=(0,), rowscale=1.25,
-            col_widths=[0.20] + [0.15] * nt + [0.08] + [0.08] * nt + [0.08] * nt)
+            col_widths=[0.20] + [0.15] * nt + ([0.08] if ie else []) + [0.08] * nt + [0.08] * nt)
     bold_rows(ax, flags)
-    txt = notes[:14] or ["No integrity indicator differs significantly (q < %g) between fractions or groups, and none "
-                         "is FDR-significantly correlated with RIN." % SIG_Q]
+    txt = notes[:14] or ["No integrity indicator differs significantly (q < %g) between %sgroups, and none "
+                         "is FDR-significantly correlated with RIN." % (SIG_Q, "fractions or " if ie else "")]
     import textwrap
     fig.text(0.03, 0.31, "\n".join("• " + "\n   ".join(textwrap.wrap(n, 165)) for n in txt), fontsize=6.8,
              va="top", linespacing=1.35)
@@ -3089,6 +3094,15 @@ REPORT_SECTIONS = [
 ]
 
 
+def adapt_sections(D):
+    """drop the Int vs Ext page and metaT wording from the contents when the run has no such data"""
+    for i, (k, title, what, pages) in enumerate(REPORT_SECTIONS):
+        if not D.int_ext:
+            pages = [p for p in pages if p[0] != "paired"]
+            what = what.replace(", between fractions and against", " and against")
+        REPORT_SECTIONS[i] = (k, title, R.adapt_words(what), [(pk, R.adapt_words(desc)) for pk, desc in pages])
+
+
 def section_label(key):
     for i, (k, title, _, _) in enumerate(REPORT_SECTIONS, 1):
         if k == key:
@@ -3246,19 +3260,22 @@ def page_highlights_chimera(pdf, C, lib, rows, top=24):
 
 
 def page_methods(pdf, C):
+    ie = R.DESIGN is None or R.DESIGN.int_ext
+    u = "fraction" if ie else "library type"
     fig = R.page(pdf, COHORT_NAME, "methods and caveats")
     txt = [
         "Inputs: per-sample pipeline outputs (Stats, Analysis/<type>/*, comparison) of %d samples; metadata %s "
         "(ID column '%s', group column '%s')." % (len(C.samples), C.a.metadata or "none", getattr(C, "id_col", "-"),
                                                   C.group_col or "-"),
         "Group tests: Kruskal-Wallis with tie correction, pairwise Mann-Whitney (effect: P(group1 > group2)), "
-        "Benjamini-Hochberg FDR within each table. Paired Int vs Ext: Wilcoxon signed-rank (normal approximation). "
-        "Correlations: Spearman (integrity vs wet-lab QC: BH-FDR within each QC measure). Covariate balance: Kruskal-Wallis (numeric) or chi-square (categorical).",
+        "Benjamini-Hochberg FDR within each table.%s "
+        "Correlations: Spearman (integrity vs wet-lab QC: BH-FDR within each QC measure). Covariate balance: Kruskal-Wallis (numeric) or chi-square (categorical)." % (
+            " Paired Int vs Ext: Wilcoxon signed-rank (normal approximation)." if ie else ""),
         "QC: every library is checked against the QC rules (%s) and manual decisions (%s); libraries with "
-        "%s are left out of all statistics and exported matrices of their fraction (%d of %d libraries). Paired "
-        "Int vs Ext tests use samples with both fractions retained." % (
+        "%s are left out of all statistics and exported matrices of their %s (%d of %d libraries).%s" % (
             C.a.qc_rules or "scripts/qc_rules.tsv", C.a.qc_exclude or "none",
-            {"FAIL": "a FAIL", "WARN": "a WARN or FAIL", "none": "(none)"}[C.a.qc_drop], len(C.excluded), len(C.m)),
+            {"FAIL": "a FAIL", "WARN": "a WARN or FAIL", "none": "(none)"}[C.a.qc_drop], u, len(C.excluded), len(C.m),
+            " Paired Int vs Ext tests use samples with both fractions retained." if ie else ""),
         "Block design (--block %s): per group the number of block levels shared with the reference decides the "
         "design — nested (≤ 2, e.g. site) or crossed (≥ 3, e.g. family). Comparisons: pooled (all libraries, "
         "Mann-Whitney, exact for n ≤ 20; PERMANOVA unrestricted) and within (only levels with both groups; van "
@@ -3268,17 +3285,17 @@ def page_methods(pdf, C):
         "group (partial R²), permuted within groups. BH-FDR within each comparison. Crossed designs fit each model "
         "twice: pooled with block-clustered SE (CR1, t with G − 1 df) and within-block (fixed effects by demeaning, "
         "clustered SE)." % (C.a.match_col or "not used"),
-        "miRNAs: analysed only in fractions with ≥ 6 libraries of ≥ %g human miRNA reads (%s); other fractions "
-        "(typically cell-free sRNA-Ext, with almost no human miRNAs) are left out of miRNA plots and tests." % (
-            C.a.min_mirna_reads, ", ".join(C.mirna_types()) or "none"),
+        "miRNAs: analysed only in %ss with ≥ 6 libraries of ≥ %g human miRNA reads (%s); other %ss%s are left out of "
+        "miRNA plots and tests." % (u, C.a.min_mirna_reads, ", ".join(C.mirna_types()) or "none", u,
+                                    " (typically cell-free sRNA-Ext, with almost no human miRNAs)" if ie else ""),
         "Adjusted models (M1, M2, … = --model %s): per feature OLS of the CLR-transformed abundance (pseudocount 0.5; features with "
         "≥ 10 reads in ≥ 10 %% of the libraries) or of the metric on the model terms; categorical terms as treatment "
         "contrasts (group reference %s), numeric terms per SD; HC3 robust standard errors, t-test, BH-FDR per term "
         "within each outcome set; complete cases only; collinear terms dropped." % (
             C.a.model or "not used", C.a.reference or (C.groups[0] if C.groups else "-")),
         "Composition: relative abundances of Bracken genus estimates; features kept if ≥ 10 reads in ≥ 10 %% of the "
-        "samples of a fraction. Beta diversity: Bray-Curtis, PCoA, PERMANOVA with %d permutations (marginal per "
-        "variable)." % C.a.permutations,
+        "samples of a %s. Beta diversity: Bray-Curtis, PCoA, PERMANOVA with %d permutations (marginal per "
+        "variable)." % (u, C.a.permutations),
         "Caveats: apart from the adjusted models (--model), the tests are exploratory and not adjusted for covariates "
         "(sex, age, constipation, medication, integrity/RIN, sequencing depth). Human miRNA counts are low (often < 1000 "
         "reads per sample); marker shares are only computed with ≥ 20 miRNA reads.",
@@ -3320,6 +3337,7 @@ def main():
                                                   "e.g. 'group+site, group+site+sex+age' (metadata columns or library "
                                                   "metrics such as qc_lRNA_RIN); '' = none")
     ap.add_argument("--cohort-name", default="cohort", help="name of the cohort, used as report title [cohort]")
+    ap.add_argument("--sample-type", default="stool", help="sample material shown in the explanations (SAMPLE_TYPE)")
     ap.add_argument("--model-notes", default="", help="short question per model, ';'-separated, 'M9=PD motor "
                     "severity; M13=RA immunosuppressants' or in model order (contents of the models page)")
     ap.add_argument("--no-heterogeneity", action="store_true",
@@ -3360,6 +3378,9 @@ def main():
     SIG_Q = a.sig_q
     load_term_names(a.term_names)
     C = Cohort(a)
+    from srna_design import design
+    R.DESIGN = design(a.outdir, C.types, sorted(C.samples), a.sample_type)
+    adapt_sections(R.DESIGN)
     d = a.cohort_dir or os.path.join(a.outdir, "Cohort")
     os.makedirs(os.path.join(d, "stats"), exist_ok=True)
     sys.stderr.write("[cohort] %d samples, %d sample-types (%d excluded by QC), groups: %s\n" % (

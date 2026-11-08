@@ -113,6 +113,9 @@ def tax_tail(classification):
 
 def table(ax, rows, col_labels=None, col_widths=None, fontsize=7, title=None, header_color="#e8eef5", left=(0,), rowscale=1.25):
     ax.axis("off")
+    title = adapt_words(title)
+    if col_labels:
+        col_labels = [adapt_words(c) for c in col_labels]
     if title:
         ax.set_title(title, loc="left", fontweight="bold")
     if not rows:
@@ -220,16 +223,86 @@ EXPLAIN = {
 }
 
 
+# Fraction- and omics-specific sentences: shown only when the run has them (srna_design.Design, set in main()).
+DESIGN = None
+
+
+KEEP_FRACTION = ("long-RNA fraction", "cell-free fraction", "microbial fraction", "cell fraction")
+
+
+def adapt_words(t):
+    """'fraction' -> 'library type' when the run has no Int/Ext fractions; 'metaG / metaT' -> 'metaG' without metaT.
+    Phrases where 'fraction' means something else (long-RNA fraction of the extraction, microbial fraction) stay."""
+    D = DESIGN
+    if D is None or not isinstance(t, str) or not t:
+        return t
+    if not D.int_ext:
+        keep = {}
+        for i, ph in enumerate(KEEP_FRACTION):
+            if ph in t:
+                keep["\x00%d\x00" % i] = ph
+                t = t.replace(ph, "\x00%d\x00" % i)
+        t = t.replace("Int vs Ext", "").replace("  ", " ")
+        t = re.sub(r"\bfractions\b", "library types", t)
+        t = re.sub(r"\bfraction\b", "library type", t)
+        for k, ph in keep.items():
+            t = t.replace(k, ph)
+    if not D.metaT:
+        for a_ in ("metaG / metaT", "metaT / metaG", "metaT/metaG", "metaG/metaT", "metaG and metaT", "metaT and metaG"):
+            t = t.replace(a_, "metaG")
+    return t
+
+
+def explain_text(key):
+    """EXPLAIN[key] adapted to the run: Int/Ext sentences only with both fractions, metaT only when given,
+    stool-specific sentences only for stool"""
+    t = EXPLAIN.get(key, key)
+    D = DESIGN
+    if D is None or key not in EXPLAIN:
+        return t
+    stool = D.sample_type.lower() in ("stool", "feces", "faeces", "fecal", "faecal")
+    if key == "overview" and not D.int_ext:
+        t = ("Small RNA library of a %s sample. %sThe read fate shows where reads are removed and how the rest is "
+             "assigned; shares are relative (compositional), not absolute amounts." % (
+                 D.sample_type, "In stool most small RNAs are processed or degraded bacterial rRNA and tRNA; human "
+                 "RNA is a small minority. " if stool else ""))
+    if key == "human":
+        if not D.int_ext:
+            t = t.replace(" Intact miRNAs are protected in cells and Argonaute complexes, whereas cell-free human RNA "
+                          "is degraded quickly, so Ext usually holds fewer human reads and hardly any miRNAs.",
+                          " Intact miRNAs are protected in cells and Argonaute complexes, whereas cell-free human RNA "
+                          "is degraded quickly.")
+        if not stool:
+            t = t.replace("Human reads come mainly from cells shed from the gut lining and, if present, immune cells or "
+                          "blood. ", "")
+    if key == "integrity" and not D.int_ext:
+        t = t.replace("Compare samples within one fraction: cell-free sRNA-Ext is expected to be more fragmented than "
+                      "sRNA-Int for biological reasons. ", "Compare samples within one library type. ")
+    if key == "novel" and not D.metaT:
+        t = t.replace("promoters/terminators and expression in metaT.", "promoters and terminators.")
+    if key == "bins":
+        ref = {(True, True): "genome abundance (metaG) and transcription (metaT)", (True, False): "genome abundance "
+               "(metaG)", (False, True): "transcription (metaT)"}.get((D.metaG, D.metaT), "the other sources")
+        t = t.replace("genome abundance (metaG) and transcription (metaT)", ref)
+    if key.startswith("cohort_"):                    # cohort pages (srna_cohort.py)
+        if not D.int_ext:
+            t = t.replace(", a missing correlation in sRNA-Ext is expected (cell-free RNA is fragmented)", "")
+            t = t.replace(" Within-sample differences between the fractions are on the Int vs Ext page.", "")
+        t = adapt_words(t)
+    return t
+
+
 PIPELINE_NAME = "sRNA-IMP pipeline"      # shown in page footers, HTML header and PDF metadata
 PIPELINE_URL = "github.com/genomeanalysislcsb/sRNA-IMP"
 
 
 def page(pdf, sample, title, subtitle="", explain=""):
     fig = plt.figure(figsize=PAGE)
+    title, subtitle = adapt_words(title), adapt_words(subtitle)
     fig.text(0.03, 0.965, "%s — %s" % (sample, title), fontsize=14, fontweight="bold", va="top")
     if subtitle:
         fig.text(0.03, 0.927, subtitle, fontsize=7.5, color="#555", va="top")
-    fig._explain = EXPLAIN.get(explain, explain)
+    fig._explain = explain_text(explain)
     fig.text(0.97, 0.012, "%s report · %s · %s" % (PIPELINE_NAME, PIPELINE_URL, datetime.date.today().isoformat()),
              fontsize=6, color="#999", ha="right")
     return fig
@@ -1722,7 +1795,8 @@ def page_bins(pdf, sample, base):
     srcs = [c[:-6] for c in allb[0] if c.endswith("_count")]
     fig = page(pdf, sample, "bins and multi-omics comparison",
                "CPM among binned reads; Spearman over HQ+MQ bins (≥ COMPARE_MIN_COUNT reads in both sources); "
-               "bases: contig = all reads, cds = metaT/metaG CDS only, no_rrna = rRNA contigs left out",
+               "bases: contig = all reads, cds = %s CDS only, no_rrna = rRNA contigs left out" % (
+                   DESIGN.omics_short if DESIGN is not None and DESIGN.omics_short else "metaT/metaG"),
                explain="bins")
     binned = [r for r in allb if r["bin"] != "unbinned"]
     tot = {s: sum(num(r[s + "_count"]) for r in binned) or 1 for s in srcs}
@@ -2121,6 +2195,7 @@ def main():
     ap.add_argument("--methods", default="", help="Markdown file with the automated Methods (srna_methods.py), "
                     "added as the last pages")
     ap.add_argument("--mqc-dir", default="", help="also write MultiQC custom-content tables here")
+    ap.add_argument("--sample-type", default="stool", help="sample material shown in the explanations (SAMPLE_TYPE)")
     a = ap.parse_args()
 
     base = os.path.join(a.outdir, a.sample)
@@ -2140,6 +2215,9 @@ def main():
                        key=_src_order)
     if not types:
         sys.exit("[report] %s: no sRNA types found" % a.sample)
+    global DESIGN
+    from srna_design import design
+    DESIGN = design(a.outdir, types, [a.sample], a.sample_type)
     load_markers(a.mirna_markers or os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                                  "mirna_origin_markers.tsv"))
     load_rfam_family(a.rfam_family)

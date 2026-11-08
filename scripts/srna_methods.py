@@ -33,6 +33,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from srna_methods_refs import REFS  # noqa: E402
+from srna_design import design  # noqa: E402
 
 PIPELINE = "sRNA-IMP pipeline"
 REPO_URL = "https://github.com/genomeanalysislcsb/sRNA-IMP"
@@ -198,6 +199,7 @@ class Ctx:
         self.c = Cites()
         self.git = git_version()
         self.used_tools, self.used_res = [], []
+        self.D = design()                               # set in main() once the library types are known
 
     def P(self, k, default=""):
         v = self.p.get(k, "")
@@ -245,9 +247,21 @@ def qc_rules_text(X):
             rows = [ln.rstrip("\n").split("\t") for ln in fh if ln.strip() and not ln.startswith("#")]
         for r in rows[1:]:
             if len(r) >= 7:
+                if r[5] not in ("*", "") and X.D.types and r[5] not in X.D.types:
+                    continue                                 # rule for a library type this run does not have
                 d = r[6] + ("" if r[5] in ("*", "") else " (%s only)" % r[5])
                 (fail if r[4] == "FAIL" else warn).append(d)
     return fail, warn
+
+
+def compare_title(D):
+    if D.metaT and D.metaG:
+        return "Comparison with metatranscriptomic and metagenomic data"
+    if D.metaT:
+        return "Comparison with metatranscriptomic data"
+    if D.metaG:
+        return "Comparison with metagenomic data"
+    return "Comparison of the small RNA library types"
 
 
 def processing_sections(X, types):
@@ -257,14 +271,15 @@ def processing_sections(X, types):
     strand = (" Because the libraries are strand-specific, only the forward strand of the RNA reference "
               "databases was searched (bowtie --norc)." if norc else "")
     ver = " (%s)" % X.git if X.git else ""
+    D = X.D
     S.append(("Small RNA data processing overview", [
-        "Small RNA sequencing libraries (%s) were processed per sample with the %s%s, a Bash workflow with Python "
-        "helper scripts that runs locally or on a SLURM cluster." % (", ".join(types) if types else
-                                                                      "[CHECK: fractions]", PIPELINE, ver),
+        "Small RNA sequencing libraries of %s samples (%s) were processed per sample with the %s%s, a Bash workflow "
+        "with Python helper scripts that runs locally or on a SLURM cluster." % (
+            D.sample_type, ", ".join(types) if types else "[CHECK: library types]", PIPELINE, ver),
         "Reads were trimmed, separated into human and non-human reads, classified into RNA classes, and mapped to "
-        "the co-assembly of the metagenomic and metatranscriptomic reads of the same sample, reconstructed with "
-        "the integrated multi-omic workflow %s, so that small RNAs could be placed on the sample's own contigs, genes, genomic bins and functional "
-        "annotation." % X.rc("imp"),
+        "the %s of the same sample, reconstructed with the integrated multi-omic workflow %s, so that small RNAs "
+        "could be placed on the sample's own contigs, genes, genomic bins and functional annotation." % (
+            D.assembly, X.rc("imp")),
     ]))
     adapter = P("ADAPTER_3P", "[CHECK: adapter]")
     tr = P("ADAPTER_3P_TRUNC", "0")
@@ -414,14 +429,16 @@ def processing_sections(X, types):
         "reverse complement of the crRNA repeat; clusters with ≥ 15 aligned nt, ≥ 75 % base pairs and an empirical "
         "P ≤ 0.01 against 500 shuffled sequences were reported as candidates.",
     ]))
-    S.append(("Comparison with metatranscriptomic and metagenomic data", [
-        "For each sample, small RNA fractions, metatranscriptome and metagenome were compared pairwise per "
+    srcs = ["the small RNA %s" % D.units if len(types) > 1 else "the small RNA library"] + \
+        [x for x, on in (("the metatranscriptome", D.metaT), ("the metagenome", D.metaG)) if on]
+    S.append((compare_title(D), [
+        "For each sample, %s were compared pairwise per "
         "feature, contig and bin: entries with ≥ %s reads in at least one of the two sources were kept, counts "
         "were normalised to counts per million (CPM, also within feature type), log2 ratios were computed with a "
         "pseudocount of %s, and agreement was summarised with Spearman correlations%s; bin-level comparisons "
         "were repeated on CDS reads only and without rRNA-carrying contigs." % (
-            P("COMPARE_MIN_COUNT", "5"), P("COMPARE_PSEUDOCOUNT", "1"), c("spearman")),
-    ]))
+            ", ".join(srcs[:-1]) + " and " + srcs[-1], P("COMPARE_MIN_COUNT", "5"), P("COMPARE_PSEUDOCOUNT", "1"), c("spearman")),
+    ] if len(srcs) > 1 else []))
     S.append(("Reports and software", [
         "Per-sample reports and all statistics were produced with %s, %s and %s; all tool versions are listed "
         "in %s." % (X.tool("python"), X.tool("numpy"), X.tool("matplotlib"),
@@ -465,27 +482,29 @@ def cohort_sections(X):
             "FAIL" if drop == "FAIL" else "WARN or FAIL") if drop != "none" else
          "No library was excluded on the basis of the QC verdict."),
         ("Libraries deviating by more than %s robust z-scores (median and median absolute deviation within the "
-         "fraction%s) in key metrics were flagged for inspection." % (oz, c("iglewicz")) if oz != "0" else ""),
-        "Sample metadata were joined by sample identifier; the sRNA fractions were always analysed separately.",
+         "%s%s) in key metrics were flagged for inspection." % (oz, X.D.unit, c("iglewicz")) if oz != "0" else ""),
+        "Sample metadata were joined by sample identifier%s." % (
+            "; the small RNA %s were always analysed separately" % X.D.units if len(X.D.types) > 1 else ""),
     ]))
     S.append(("Feature tables", [
         "Per library, count tables were built for genera, families and species (Bracken estimates from rRNA "
         "reads), human miRNAs, Rfam families and types, RNA classes, tRNA amino acids, and sense reads per KEGG "
         "pathway, module and orthology, Pfam domain and COG.",
-        "Features were analysed as relative abundances and retained if they had ≥ 10 reads in ≥ 10 % of the "
-        "libraries of a fraction.",
-        "miRNAs were analysed only in fractions with ≥ 6 libraries of ≥ %s human miRNA reads." % P(
-            "COHORT_MIN_MIRNA_READS", "50"),
+        "Features were analysed as relative abundances and retained if they had ≥ 10 reads in ≥ 10 %% of the "
+        "libraries of a %s." % X.D.unit,
+        "miRNAs were analysed only in %s with ≥ 6 libraries of ≥ %s human miRNA reads." % (
+            X.D.units, P("COHORT_MIN_MIRNA_READS", "50")),
     ]))
     S.append(("Group comparisons", [
         "Library metrics and features were compared between groups with the Kruskal–Wallis test with tie "
         "correction%s and pairwise with the two-sided Mann–Whitney *U* test%s (exact for *n* ≤ 20; effect size "
         "P(X > Y)); *P* values were adjusted with the Benjamini–Hochberg procedure%s within each table, and "
         "*q* < %s was considered significant." % (c("kruskal"), c("mannwhitney"), c("bh"), q),
-        "Paired comparisons of the intracellular and extracellular fraction of the same sample used the Wilcoxon "
-        "signed-rank test%s; associations of integrity indicators with wet-lab RNA quality used Spearman "
+        ("Paired comparisons of the intracellular and extracellular fraction of the same sample used the Wilcoxon "
+         "signed-rank test%s; a" % c("wilcoxon") if X.D.int_ext else "A") +
+        "ssociations of integrity indicators with wet-lab RNA quality used Spearman "
         "correlations%s (BH within each QC measure); covariate balance between groups was tested with the "
-        "Kruskal–Wallis test (numeric) or the χ² test (categorical)." % (c("wilcoxon"), c("spearman")),
+        "Kruskal–Wallis test (numeric) or the χ² test (categorical)." % c("spearman"),
     ]))
     items = [
         "Beta diversity was computed as Bray–Curtis dissimilarity%s of relative abundances, ordinated by principal "
@@ -604,6 +623,9 @@ STAR_CMD = {
     "tRNA and rRNA fragments and RNA integrity": "fragments",
     "CRISPR arrays": "crispr",
     "Comparison with metatranscriptomic and metagenomic data": "--compare",
+    "Comparison with metagenomic data": "--compare",
+    "Comparison with metatranscriptomic data": "--compare",
+    "Comparison of the small RNA library types": "--compare",
     "Reports and software": "--report",
 }
 PRESENT = [(r"\bwere\b", "are"), (r"\bwas\b", "is"), (r"\breceived\b", "receives"),
@@ -621,13 +643,14 @@ def present(t):
 def render_star(X, sections, title, cohort):
     out = ["# %s" % title, "",
            "## Summary", "",
-           "This protocol describes the processing of gut small RNA sequencing libraries (intracellular and "
-           "extracellular fractions) with the %s together with the metagenome and metatranscriptome of the same "
-           "samples%s. [CHECK: edit summary.]" % (PIPELINE, ", followed by a cross-sample cohort analysis" if cohort
-                                                  else ""), "",
+           "This protocol describes the processing of %s %s with the %s%s%s. [CHECK: edit summary.]" % (
+               X.D.sample_type, X.D.libraries, PIPELINE,
+               " together with the %s of the same samples" % X.D.omics if X.D.omics else "",
+               ", followed by a cross-sample cohort analysis" if cohort else ""), "",
            "## Before you begin", "",
-           "1. Process the metagenomic and metatranscriptomic reads of each sample with the integrated multi-omic "
-           "workflow (co-assembly, annotation, binning).",
+           "1. Process the %s reads of each sample with the integrated multi-omic workflow (%s, annotation, "
+           "binning)." % ("metagenomic and metatranscriptomic" if X.D.metaT else "metagenomic",
+                          "co-assembly" if X.D.metaT else "assembly"),
            "2. Install the software environments (envs/*.yml) and the reference databases listed in the key "
            "resources table, and set their paths in srna_pipeline.config.sh.",
            "3. Prepare a sample sheet with the small RNA FASTQ files and the multi-omic outputs per sample"
@@ -662,10 +685,11 @@ def render_star(X, sections, title, cohort):
                                                              "Block design", "Adjusted models",
                                                              "Statistical software"))]
     body += ["## Expected outcomes", "",
-             "Per sample and fraction: read fate (trimming, human, rRNA, tRNA, Rfam, unknown), RNA class and "
+             "Per sample and %s: read fate (trimming, human, rRNA, tRNA, Rfam, unknown), RNA class and "
              "taxonomic profiles, gene, functional-term and bin counts (sense and antisense), candidate novel loci, "
-             "tRNA/rRNA fragment and integrity profiles, CRISPR array expression, comparisons with metaT and metaG, "
+             "tRNA/rRNA fragment and integrity profiles, CRISPR array expression, %s"
              "and a PDF/HTML report with a QC verdict%s." % (
+                 X.D.unit, "comparisons with %s, " % X.D.omics_short if X.D.omics_short else "",
                  "; for the cohort, group comparisons, ordinations and adjusted models with a cohort report"
                  if cohort else ""), "",
              "## Quantification and statistical analysis", ""]
@@ -678,7 +702,7 @@ def render_star(X, sections, title, cohort):
                 body += ["**%s.** %s" % (h, present(" ".join(items))), ""]
     else:
         body += ["Counts are weighted 1/*n* for reads with *n* equally good alignments; relative measures are "
-                 "compositional and compared within a fraction.", ""]
+                 "compositional and compared within a %s." % X.D.unit, ""]
     body += ["## Limitations", "",
              "Short reads (< 20 nt) cannot be assigned reliably to the host or to single loci; multi-mapping reads are "
              "distributed fractionally; RNA-class shares are relative (compositional); antisense counts depend on "
@@ -707,7 +731,8 @@ def main():
     ap.add_argument("--resources", default=os.path.join(HERE, "methods_resources.tsv"))
     ap.add_argument("--outdir", default="")
     ap.add_argument("--cohort-dir", default="")
-    ap.add_argument("--samples", default="", help="(unused; kept for compatibility)")
+    ap.add_argument("--samples", default="", help="sample ID(s), comma-separated: in --mode sample the design (library "
+                    "types, metaT / metaG) is read from these samples only")
     ap.add_argument("--types", default="", help="sRNA types (default: from the cohort table or the params)")
     ap.add_argument("--out", required=True, help="output Markdown")
     ap.add_argument("--docx", action="store_true", help="also write .docx with pandoc (if available)")
@@ -725,6 +750,9 @@ def main():
     types = [t for t in a.types.split(",") if t]
     if not types and a.mode != "sample":
         types = sorted(cohort_facts(X)["libs"])
+    samples = [s for s in a.samples.split(",") if s] if a.mode == "sample" else None
+    X.D = design(a.outdir, types or None, samples, X.P("SAMPLE_TYPE", "stool"))
+    types = types or X.D.types
     sections = processing_sections(X, types)
     cohort = a.mode in ("cohort", "all")
     if cohort:

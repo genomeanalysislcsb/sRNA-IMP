@@ -27,6 +27,7 @@ ASSEMBLY_RECOUNT_ONLY=1 RRNA_EXCLUDE_RFAM=1 ./srna_pipeline.sh -s samples.tsv -o
 | `SCRIPTS_DIR` | `/scratch/users/pmay/sRNAs/scripts` | Python helper scripts |
 | `TMP_ROOT` | `$SLURM_TMPDIR` / `$TMPDIR` / `/tmp` | temporary files |
 | `STAGE_MODE` | `copy` | `copy` or `symlink` raw reads |
+| `SAMPLE_TYPE` | `stool` | sample material named in the report explanations and the automated Methods |
 | `MINLEN` | 18 | minimum read length after trimming |
 | `MIN_LIBRARY_READS` | 10000 | libraries with fewer trimmed reads (failed libraries) are not analysed beyond `split`: later modules are skipped and marked done; the QC rules mark them FAIL |
 | `MAXLEN` | 50 | maximum read length after trimming (use the read length, e.g. 100) |

@@ -125,7 +125,7 @@ page menu; ~1.5 MB) for quick checks in a browser:
 | novel | loci by Rfam class (rRNA / tRNA / tmRNA / other Rfam / no hit), read support, other Rfam families, top candidates other than rRNA/tRNA/tmRNA with RNAfold MFE |
 | bins / omics | Spearman table (all pairs, bin bases, features within type), unbinned share, scatter plots, top bins |
 
-Every page starts with a short biological explanation of what it shows; a last page lists the miRNA marker sets and their references. Pages whose inputs are missing (module not run) are skipped. The report also writes MultiQC
+Every page starts with a short biological explanation of what it shows. The explanations, the cohort pages and the automated Methods describe only what the run contains: fraction-specific text and the paired Int vs Ext analyses appear only when both `sRNA-Int` and `sRNA-Ext` are present, metaT only when metaT counts were given, and the sample material is taken from `SAMPLE_TYPE` (default `stool`). A last page lists the miRNA marker sets and their references. Pages whose inputs are missing (module not run) are skipped. The report also writes MultiQC
 custom-content tables to `<sample>/Report/multiqc/` (`*_mqc.tsv`: general statistics, read fate,
 Bracken genera), so that `multiqc <outdir>` gives an overview over all samples. The SLURM wrapper runs
 `--compare --report` in its final job. Needs `matplotlib` in the environment (`ENV_REPORT`, default
