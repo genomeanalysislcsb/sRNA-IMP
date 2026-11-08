@@ -314,8 +314,18 @@ def main():
                 if lens[k]:
                     M.append(("novel", "other_candidates_len_%snt" % k, lens[k]))
             # where the reads on candidates without simulated reads come from: read names in the pipeline BAM
-            bam = os.path.join(ana, "novel", "%s.sorted.bam" % S)
-            if notruth and os.path.exists(bam) and shutil.which("samtools"):
+            bams = [x for x in (os.path.join(ana, "novel", "%s.sorted.bam" % S), os.path.join(ana, "assembly", "%s.bam" % S),
+                                os.path.join(ana, "%s.bam" % S)) if os.path.exists(x)] + \
+                sorted(glob.glob(os.path.join(ana, "*", "%s*.bam" % S)))
+            bam = bams[0] if bams else ""
+            if notruth and not bam:
+                M.append(("novel", "no_truth_candidates_reads_from", "skipped: no BAM under %s" % ana))
+            elif notruth and not shutil.which("samtools"):
+                M.append(("novel", "no_truth_candidates_reads_from", "skipped: samtools not in PATH"))
+            elif notruth and not os.path.exists(bam + ".bai") and not os.path.exists(bam[:-4] + ".bai"):
+                subprocess.run(["samtools", "index", bam], check=False)
+            if notruth and bam and shutil.which("samtools"):
+                M.append(("novel", "no_truth_candidates_bam", bam))
                 bed = a.out + ".notruth.bed"
                 with open(bed, "w") as fh:
                     for c in notruth:
