@@ -250,6 +250,8 @@ def qc_rules_text(X):
                 if r[5] not in ("*", "") and X.D.types and r[5] not in X.D.types:
                     continue                                 # rule for a library type this run does not have
                 d = r[6] + ("" if r[5] in ("*", "") else " (%s only)" % r[5])
+                if X.D.omics_short and not (X.D.metaT and X.D.metaG):
+                    d = d.replace("metaT/metaG", X.D.omics_short)
                 (fail if r[4] == "FAIL" else warn).append(d)
     return fail, warn
 
