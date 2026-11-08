@@ -326,6 +326,7 @@ def explain_text(key):
         if not D.int_ext:
             t = t.replace(", a missing correlation in sRNA-Ext is expected (cell-free RNA is fragmented)", "")
             t = t.replace(" Within-sample differences between the fractions are on the Int vs Ext page.", "")
+            t = t.replace(", whether the fractions differ (paired test)", "")
         t = adapt_words(t)
     return t
 
