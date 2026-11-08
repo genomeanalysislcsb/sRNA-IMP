@@ -160,6 +160,9 @@ RRNA_RESCUE_MAX_SENSE_RATIO="${RRNA_RESCUE_MAX_SENSE_RATIO-0.1}" # ... and sense
 RRNA_RESCUE_CM="${RRNA_RESCUE_CM-}"         # rRNA subset of RFAM_CM (built once, cmpress); "" = <outdir>/.shared/Rfam.rRNA.cm
 NOVEL_MINLEN=18
 NOVEL_MAXLEN=250
+NOVEL_EXCLUDE_ANNOTATED_MULTI=${NOVEL_EXCLUDE_ANNOTATED_MULTI-0}  # 1 = reads with any alignment on an annotated tRNA/rRNA/
+                             # tmRNA/ncRNA do not support novel loci (their multi-mapping copies on unannotated or partial
+                             # copies of the same RNA otherwise become candidates); being benchmarked
 NOVEL_MINREADS=10            # min. read support per locus; multi-mapping reads count 1/hits per alignment
 NOVEL_MERGEDIST=10
 RUN_ARAGORN=1
