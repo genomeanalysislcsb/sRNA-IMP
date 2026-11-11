@@ -77,7 +77,8 @@ For a parameter sweep, simulate once and run the pipeline into separate output f
 iScience 23:101131): cutadapt (adapter only, `-m 1`), bowtie2 `-k10` to GRCh38, htseq-count on miRBase and
 RNAcentral GFFs, kraken2 on the unmapped reads. The commands and options are those of the published scripts; the
 only changes are the input file name of bowtie2, which in the published scripts does not match the cutadapt output, and
-htseq-count reading the alignments as BAM, because current HTSeq fails to decode the SAM written by bowtie2.
+htseq-count reading only the aligned records (`samtools view -b -F 4`), because current HTSeq fails on the
+unaligned records of the 1-nt reads that `cutadapt -m 1` keeps; the feature counts are unchanged.
 Databases as in the sMETASeq README (GRCh38 no_alt bowtie2 index, miRBase `hsa.gff3`, RNAcentral GRCh38 GFF3 with
 `chr` prefix, a kraken2 standard database); tools from bioconda (`cutadapt bowtie2 samtools htseq kraken2`).
 
