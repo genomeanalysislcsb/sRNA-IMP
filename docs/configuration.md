@@ -89,6 +89,8 @@ assembly-based modules depend on a usable metagenome assembly. Check the QC rule
 | parameter | meaning |
 | --- | --- |
 | `IDX_HSA_MIRNA`, `IDX_HSA_TRNA`, `IDX_HSA_RRNA`, `IDX_HSA_NCRNA_OTHER` | bowtie indices of the human classes |
+| `HUMAN_MIRNA_STRATA` (1) | miRNAs: only the best bowtie stratum, so an exact hit is not shared with 1-mismatch family members |
+| `HUMAN_MIRNA_TAIL` (2) | 3′ isomiRs: reads left after the miRNA step are trimmed by 1…N 3′ nt and aligned exactly to the mature miRNAs; 0 = off |
 
 ## nonhuman
 

@@ -92,6 +92,10 @@ HOST_SHORT_MISMATCHES=0       # ... are mapped to the host with bowtie -v 0
 # Host-mapped reads that also map to the sample's own assembly with
 # <= mismatches are kept as non-human (needs module prep before split).
 HOST_ASSEMBLY_RESCUE=1
+# Human miRNAs (module human): only the best bowtie stratum (exact hits win over 1-mismatch hits of family members),
+# and 3' isomiRs with up to HUMAN_MIRNA_TAIL non-templated 3' nt (trimmed and re-aligned exactly). Being benchmarked.
+HUMAN_MIRNA_STRATA=${HUMAN_MIRNA_STRATA-1}
+HUMAN_MIRNA_TAIL=${HUMAN_MIRNA_TAIL-2}
 # Mature host tRNAs with the post-transcriptional 3' CCA (built from IDX_HSA_TRNA) as a third host reference after
 # genome and transcripts: 3' tRNA fragments and halves end in CCA, which is in neither (simulation benchmark: human
 # tRNA recall 45 -> 90-96 % for 3' fragments and halves, no extra microbial reads called human). 0 = off.

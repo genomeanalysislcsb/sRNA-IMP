@@ -334,6 +334,11 @@ def processing_sections(X, types):
         "%s (-v 1 -a --best): mature miRNAs (%s), nuclear and mitochondrial tRNAs (%s), rRNAs (%s), other "
         "ncRNAs (%s), and unknown." % (X.tool("bowtie", False), X.rc("hsa_mirna"), X.rc("hsa_trna"),
                                         X.rc("hsa_rrna"), X.rc("hsa_other")),
+        ("For miRNAs only the best alignment stratum was kept (--strata), so that an exact match was not shared "
+         "with one-mismatch matches of family members." if X.on("HUMAN_MIRNA_STRATA") else ""),
+        ("Reads without a miRNA match were trimmed by 1 to %s 3′ nucleotides and aligned again without mismatches "
+         "to the mature miRNAs, so that 3′ isomiRs with non-templated additions were counted for their miRNA." % (
+             P("HUMAN_MIRNA_TAIL", "2")) if P("HUMAN_MIRNA_TAIL", "2") not in ("0", "") else ""),
         "A read with *n* equally good hits contributed 1/*n* to each reference sequence.",
     ]))
     S.append(("Microbial small RNA classes and rRNA-based taxonomy", [

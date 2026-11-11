@@ -663,7 +663,7 @@ module_prep() {
 # MODULE: human — sequential bowtie screen miRNA > tRNA > rRNA > other
 # ==================================================================
 module_human() {
-  need bowtie python3
+  need bowtie python3 seqkit
   local L=$LOGDIR/human
   mkdir -p "$L" "$HUMANDIR"/{mirna,trna,rrna,otherrna,unknown}
   [[ -s "$HUMANREADS.fastq.gz" ]] || die "missing $HUMANREADS.fastq.gz — run module split first"
@@ -678,7 +678,10 @@ module_human() {
       : > "$TEMPDIR/$PREFIX.human.$name.sam"; : > "$TEMPDIR/$unname.fastq"
       echo "no input reads — step skipped" > "$L/$PREFIX.bowtie.$name.log"
     else
-      bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 1 -a --best --sam --un "$TEMPDIR/$unname.fastq" \
+      # miRNAs: only the best stratum (an exact hit wins over 1-mismatch hits of family members)
+      local strata=""
+      [[ "$name" == mirna && "${HUMAN_MIRNA_STRATA:-1}" -eq 1 ]] && strata="--strata"
+      bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 1 -a --best $strata --sam --un "$TEMPDIR/$unname.fastq" \
         "$idx" "$in" > "$TEMPDIR/$PREFIX.human.$name.sam" 2> "$L/$PREFIX.bowtie.$name.log"
       [[ -e "$TEMPDIR/$unname.fastq" ]] || : > "$TEMPDIR/$unname.fastq"
     fi
@@ -689,6 +692,32 @@ module_human() {
 
   human_step mirna    "$IDX_HSA_MIRNA"       "$HUMANREADS.fastq.gz" \
              "$PREFIX.human.non_mirna" mirna
+  # 3' isomiRs: mature miRNAs with 1..HUMAN_MIRNA_TAIL non-templated 3' nt (A/U additions) are longer than the
+  # mature sequence and cannot align end-to-end. Reads left after the miRNA step are trimmed by k = 1..N 3' nt and
+  # aligned exactly (-v 0, best stratum); hits count for the miRNA (original read name) and leave the later steps.
+  local NT=${HUMAN_MIRNA_TAIL:-2} k NM=$HUMANDIR/mirna/$PREFIX.human.non_mirna.fastq.gz
+  if (( NT > 0 )) && [[ "$(fastq_reads "$NM")" -gt 0 ]]; then
+    : > "$TEMPDIR/tail.ids"
+    zcat "$NM" > "$TEMPDIR/tail.left.fq"
+    for (( k = 1; k <= NT; k++ )); do
+      awk -v k="$k" 'NR % 4 == 1 { h = $0 } NR % 4 == 2 { s = $0 } NR % 4 == 0 {
+          if (length(s) - k >= 18) { print h; print substr(s, 1, length(s) - k); print "+"; print substr($0, 1, length($0) - k) } }' \
+        "$TEMPDIR/tail.left.fq" > "$TEMPDIR/tail.$k.fq"
+      [[ -s "$TEMPDIR/tail.$k.fq" ]] || continue
+      bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 0 -a --best --strata --sam "$IDX_HSA_MIRNA" "$TEMPDIR/tail.$k.fq" \
+        2> "$L/$PREFIX.bowtie.mirna_tail$k.log" | awk -F'\t' '!/^@/ && int($2/4)%2==0' > "$TEMPDIR/tail.$k.sam"
+      cut -f1 "$TEMPDIR/tail.$k.sam" | sort -u > "$TEMPDIR/tail.$k.ids"
+      cat "$TEMPDIR/tail.$k.sam" >> "$TEMPDIR/$PREFIX.human.mirna.sam"
+      cat "$TEMPDIR/tail.$k.ids" >> "$TEMPDIR/tail.ids"
+      if [[ -s "$TEMPDIR/tail.$k.ids" ]]; then
+        seqkit grep -v -f "$TEMPDIR/tail.$k.ids" "$TEMPDIR/tail.left.fq" > "$TEMPDIR/tail.left2.fq"
+        mv "$TEMPDIR/tail.left2.fq" "$TEMPDIR/tail.left.fq"
+      fi
+      log "  miRNA 3' isomiRs: $(wc -l < "$TEMPDIR/tail.$k.ids") more reads after trimming $k 3' nt"
+    done
+    gzip -c "$TEMPDIR/tail.left.fq" > "$NM"
+  fi
+
   human_step trna     "$IDX_HSA_TRNA"        "$HUMANDIR/mirna/$PREFIX.human.non_mirna.fastq.gz" \
              "$PREFIX.human.non_mirna.non_trna" trna
   human_step rrna     "$IDX_HSA_RRNA"        "$HUMANDIR/trna/$PREFIX.human.non_mirna.non_trna.fastq.gz" \
