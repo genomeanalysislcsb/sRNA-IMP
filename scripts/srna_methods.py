@@ -324,6 +324,10 @@ def processing_sections(X, types):
         ("Reads still unmapped were aligned with the same settings to the mature human tRNAs with their "
          "post-transcriptional 3′ CCA (%s), which is absent from the genome and the transcripts, so that 3′ tRNA "
          "fragments and halves were assigned to the host." % X.rc("hsa_trna") if X.on("HOST_TRNA_CCA") else ""),
+        ("Reads of %s–30 nt still unassigned that matched a mature human miRNA exactly after trimming 0 to %s 3′ "
+         "nucleotides (%s) were also assigned to the host, so that short mature miRNAs and 3′ isomiRs with "
+         "non-templated additions were not lost." % (P("HOST_MIRNA_MINLEN", "17"), P("HOST_MIRNA_TAIL", "2"),
+                                                    X.rc("hsa_mirna")) if X.on("HOST_MIRNA") else ""),
         ("Reads with a human hit that matched the sample's own contigs with no more mismatches than the human "
          "reference were reassigned to the microbial fraction, so that conserved short sequences were not "
          "attributed to the host." if X.on("HOST_ASSEMBLY_RESCUE") else ""),

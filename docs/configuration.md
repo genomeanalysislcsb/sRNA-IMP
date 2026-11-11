@@ -66,6 +66,7 @@ ASSEMBLY_RECOUNT_ONLY=1 RRNA_EXCLUDE_RFAM=1 ./srna_pipeline.sh -s samples.tsv -o
 | `HOST_SHORT_MISMATCHES` | 0 | … with this many mismatches |
 | `HOST_MISMATCHES` | 0 | mismatches for reads ≥ `HOST_SHORT_LEN` (1 = more tolerant, more chance hits) |
 | `HOST_ASSEMBLY_RESCUE` | 1 | human hits matching the contigs as well → non-human |
+| `HOST_MIRNA`, `HOST_MIRNA_MINLEN`, `HOST_MIRNA_TAIL` | 1, 17, 2 | reads still non-host of 17–30 nt that are a mature host miRNA (exact, after trimming 0–2 3′ nt) go to the host: short mature miRNAs and 3′ isomiRs with non-templated additions; the contig rescue still applies |
 | `HOST_TRNA_CCA` | 1 | also map to mature host tRNAs with the 3′ CCA (from `IDX_HSA_TRNA`, built once in `HOST_INDEX_TMPDIR`), so that 3′ tRNA fragments and halves are recognised as host |
 | `HOST_NAME` | `human` | host word used in reports and the automated Methods |
 | `HOST_MIRNA_PREFIX` | `hsa` | miRBase species prefix of the host miRNAs (`mmu` for mouse) |

@@ -100,6 +100,13 @@ HUMAN_MIRNA_TAIL=${HUMAN_MIRNA_TAIL-2}
 # genome and transcripts: 3' tRNA fragments and halves end in CCA, which is in neither (simulation benchmark: human
 # tRNA recall 45 -> 90-96 % for 3' fragments and halves, no extra microbial reads called human). 0 = off.
 HOST_TRNA_CCA=${HOST_TRNA_CCA-1}
+# Mature host miRNAs incl. 3' isomiRs (IDX_HSA_MIRNA) as a fourth host step: reads still non-host of
+# HOST_MIRNA_MINLEN..30 nt that match a mature miRNA exactly after trimming 0..HOST_MIRNA_TAIL 3' nt are host
+# (short mature miRNAs < HOST_MIN_LEN and non-templated 3' additions are missed by exact genome matching).
+# Being benchmarked.
+HOST_MIRNA=${HOST_MIRNA-1}
+HOST_MIRNA_MINLEN=${HOST_MIRNA_MINLEN-17}
+HOST_MIRNA_TAIL=${HOST_MIRNA_TAIL-2}
 
 # Host species. The host references are the paths above (HOST_GENOME_FA, HOST_TX_FA) and IDX_HSA_* below;
 # for another host (e.g. mouse) point them at that species' genome, transcripts, mature miRNAs, tRNAs, rRNAs and
