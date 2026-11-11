@@ -9,16 +9,17 @@
 #   htseq-count -i Name -t miRNA      SAM <miRBase hsa.gff3>                      -> FILE.miRBase.csv
 #   unmapped FASTQ -> FASTA; kraken2 --db <standard> --report FILE.kraken_report.csv --use-mpa-style
 # They do not run as published: cutadapt writes FILE.cut.fastq, bowtie2 reads FILE.cut_trimmed.fastq. This script
-# runs the same commands with that one file name fixed; everything else (options, databases) is unchanged.
+# runs the same commands with that file name fixed (deviation 1); options and databases are unchanged.
 #
 # Usage: smetaseq_reimpl.sh -i reads.fastq.gz -o out/PREFIX -x <bowtie2 index> -m hsa.gff3 -r rnacentral.chr.gff3
 #                           -k <kraken2 db> [-a ADAPTER] [-t threads]
 #   -a  3' adapter [AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC = sMETASeq_NEBNext.sh; TruSeq small RNA: TGGAATTCTCGGGTGCCAAGG]
-# Needs cutadapt, bowtie2, htseq-count, kraken2 in PATH (conda: bioconda::cutadapt bowtie2 htseq kraken2).
+# Needs cutadapt, bowtie2, samtools, htseq-count, kraken2 in PATH (bioconda: cutadapt bowtie2 samtools htseq kraken2).
+# Deviation 2: htseq-count reads the alignments as BAM (samtools view -b), because current HTSeq fails on the SAM.
 # Databases as in the sMETASeq README: GRCh38 no_alt bowtie2 index (NCBI), miRBase hsa.gff3, RNAcentral
 # homo_sapiens.GRCh38.gff3 with "chr" prefix added, a kraken2 standard database.
 set -euo pipefail
-usage() { sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 IN="" OUT="" IDX="" MIRBASE="" RNAC="" KDB="" ADAPTER=AGATCGGAAGAGCACACGTCTGAACTCCAGTCAC T=10
 while getopts "i:o:x:m:r:k:a:t:h" o; do
   case $o in
@@ -27,7 +28,7 @@ while getopts "i:o:x:m:r:k:a:t:h" o; do
   esac
 done
 [[ -n "$IN" && -n "$OUT" && -n "$IDX" && -n "$MIRBASE" && -n "$RNAC" && -n "$KDB" ]] || usage 1
-for t in cutadapt bowtie2 htseq-count kraken2; do command -v "$t" >/dev/null || { echo "Error: $t not in PATH" >&2; exit 1; }; done
+for t in cutadapt bowtie2 samtools htseq-count kraken2; do command -v "$t" >/dev/null || { echo "Error: $t not in PATH" >&2; exit 1; }; done
 mkdir -p "$(dirname "$OUT")"
 F=$OUT
 echo "[smetaseq] $(date '+%F %T') $IN -> $F.*" >&2
@@ -35,8 +36,11 @@ echo "[smetaseq] $(date '+%F %T') $IN -> $F.*" >&2
 cutadapt -a "$ADAPTER" -m 1 -o "$F.cut.fastq" "$IN" > "$F.cutadapt.log"
 # (published scripts read $FILE.cut_trimmed.fastq here, which is never written)
 bowtie2 -p "$T" -k10 -x "$IDX" -q "$F.cut.fastq" --un "$F.Unmapped.cut.fastq" -S "$F.mapped.cut.sam" 2> "$F.bowtie2.log"
-htseq-count -i Name -t transcript "$F.mapped.cut.sam" "$RNAC" > "$F.RNACentral.csv" 2> "$F.htseq_rnacentral.log"
-htseq-count -i Name -t miRNA "$F.mapped.cut.sam" "$MIRBASE" > "$F.miRBase.csv" 2> "$F.htseq_mirbase.log"
+# Current HTSeq (pysam) fails to decode some SAM records written by bowtie2 (UnicodeDecodeError); the same
+# alignments as BAM are read without error. Only the file format changes, not the alignments or the counting.
+samtools view -@ "$T" -b -o "$F.mapped.cut.bam" "$F.mapped.cut.sam"
+htseq-count -f bam -i Name -t transcript "$F.mapped.cut.bam" "$RNAC" > "$F.RNACentral.csv" 2> "$F.htseq_rnacentral.log"
+htseq-count -f bam -i Name -t miRNA "$F.mapped.cut.bam" "$MIRBASE" > "$F.miRBase.csv" 2> "$F.htseq_mirbase.log"
 sed -n '1~4s/^@/>/p;2~4p' "$F.Unmapped.cut.fastq" > "$F.Unmapped.cut.fasta"
 kraken2 --db "$KDB" --threads "$T" --report "$F.kraken_report.csv" --use-mpa-style --output "$F.kraken_mpa.csv" \
   "$F.Unmapped.cut.fasta" 2> "$F.kraken2.log"
