@@ -150,6 +150,7 @@ def main():
         tp = fp = fn = 0
         fp_cls = collections.Counter()
         h_all, h_miss = collections.Counter(), collections.Counter()   # human reads by (class, length bin)
+        mir_in_host = collections.Counter()                            # simulated miRNA reads that reached the host fraction
         n_micro = collections.Counter()
         for r in trimmed:
             t = truth.get(r)
@@ -158,6 +159,8 @@ def main():
             is_h, call_h = t["origin"] == "human", r in hum
             if not is_h:
                 n_micro[t["class"]] += 1
+            if is_h and t["class"] == "miRNA" and call_h:
+                mir_in_host[t["feature"]] += 1
             if is_h:
                 L = int(t["insert_len"])
                 lb = "<20" if L < 20 else "20-24" if L <= 24 else "25-34" if L <= 34 else ">=35"
@@ -186,6 +189,10 @@ def main():
     else:
         called = read_counts(os.path.join(ana, "human", "mirna", "%s.human.mirna.counts.tsv" % S))
         resc = read_counts(os.path.join(ana, "nonhuman", "mirna_like", "%s.mirna_like.human.counts.tsv" % S))
+    try:
+        mir_in_host
+    except NameError:
+        mir_in_host = None
     if called or resc:
         tot = called + resc
         tm = collections.Counter(t["feature"] for t in truth.values() if t["origin"] == "human" and t["class"] == "miRNA")
@@ -194,14 +201,20 @@ def main():
         M.append(("human", "mirna_truth_reads", sum(tm.values())))
         M.append(("human", "mirna_called_reads", "%.1f" % sum(tot.values())))
         M.append(("human", "mirna_called_reads_rescued", "%.1f" % sum(resc.values())))
+        if mir_in_host is not None:
+            M.append(("human", "mirna_truth_reads_in_host_fraction", "%d (%.3f)" % (
+                sum(mir_in_host.values()), sum(mir_in_host.values()) / max(sum(tm.values()), 1))))
+            lost = [n for n in tm if tm[n] >= 10 and mir_in_host[n] == 0]
+            M.append(("human", "mirnas_ge10_reads_none_in_host", "%d (%s)" % (len(lost), ",".join(sorted(lost)[:12]))))
         M.append(("human", "mirna_spearman", "%.3f" % sp))
         M.append(("human", "mirnas_true_detected", "%d of %d" % (sum(1 for n in tm if tot[n] > 0), len(tm))))
         false = [n for n in tot if tot[n] > 0 and tm[n] == 0]
         M.append(("human", "mirnas_false", "%d (%.1f reads)" % (len(false), sum(tot[n] for n in false))))
         with open(a.out + ".mirna.tsv", "w") as fh:
-            fh.write("mirna\ttruth\tcalled\trescued\n")
+            fh.write("mirna\ttruth\tcalled\trescued\ttruth_in_host_fraction\n")
             for n in names:
-                fh.write("%s\t%d\t%.2f\t%.2f\n" % (n, tm[n], tot[n], resc[n]))
+                fh.write("%s\t%d\t%.2f\t%.2f\t%s\n" % (n, tm[n], tot[n], resc[n],
+                                                      mir_in_host[n] if mir_in_host is not None else "-"))
 
     # ---- assembly: feature counts vs truth
     fc = os.path.join(ana, "assembly", "%s.feature_counts.tsv" % S)
