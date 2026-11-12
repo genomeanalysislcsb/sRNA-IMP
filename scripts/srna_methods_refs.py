@@ -13,6 +13,9 @@ REFS = {
     "bowtie": (["Langmead, B.", "Trapnell, C.", "Pop, M.", "Salzberg, S.L."], 2009,
                "Ultrafast and memory-efficient alignment of short DNA sequences to the human genome",
                "Genome Biol.", "10", "R25", "10.1186/gb-2009-10-3-r25"),
+    "featurecounts": (["Liao, Y.", "Smyth, G.K.", "Shi, W."], 2014,
+                      "featureCounts: an efficient general purpose program for assigning sequence reads to genomic "
+                      "features", "Bioinformatics", "30", "923–930", "10.1093/bioinformatics/btt656"),
     "samtools": (["Danecek, P.", "Bonfield, J.K.", "Liddle, J.", "Marshall, J.", "Ohan, V.", "Pollard, M.O.",
                   "Whitwham, A.", "Keane, T.", "McCarthy, S.A.", "Davies, R.M.", "Li, H."], 2021,
                  "Twelve years of SAMtools and BCFtools", "GigaScience", "10", "giab008",

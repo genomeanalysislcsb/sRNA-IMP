@@ -156,6 +156,10 @@ assembly-based modules depend on a usable metagenome assembly. Check the QC rule
 | `BINS_MIN_OVERLAP` | 0.5 | fraction of the read overlapping a feature |
 | `COMPARE_PSEUDOCOUNT` | 1 | added to CPM before log2 ratios |
 | `COMPARE_MIN_COUNT` | 5 | min. raw count in at least one of the two sources of a pair |
+| `COMPARE_MT_STRAND` | `auto` | metaT reads per feature on the gene and the opposite strand for the features with antisense sRNA reads (`featureCounts -s 1 / -s 2` on the metaT BAM; `auto` takes the gene strand from the CDS reads); `reverse` (dUTP / TruSeq Stranded), `forward`, `off`. Unstranded metaT is detected and reported |
+| `COMPARE_MT_BAM` | `""` | metaT BAM (`<ID>`/`<id>` placeholders); `""` = `CHIMERA_MT_BAM`, else `<IMP dir>/Assembly/mt.reads.sorted.bam` |
+| `COMPARE_MT_MIN_ANTISENSE`, `COMPARE_MT_MIN_READS` | 10, 10 | antisense sRNA reads per feature to classify it; metaT reads to call a strand transcribed |
+| `FEATURECOUNTS` | `featureCounts` | subread featureCounts (in `ENV_COMPARE`) |
 | `REPORT_HTML` | 1 | `--report` also writes `<sample>.report.html`; `""` = PDF only |
 | `METHODS_STYLE` | `nature,star` | automated Methods written by `--report` and `--cohort`: `nature`, `star` (STAR Protocols) or both; `none` = off |
 | `METHODS_REPORT_STYLE` | `star` | Methods added as the last pages of the sample and cohort reports (PDF; real text in the HTML): `star`, `nature` or `none` |

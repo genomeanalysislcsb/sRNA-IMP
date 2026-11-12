@@ -49,6 +49,7 @@ TOOLS = collections.OrderedDict([
     ("samtools", ("SAMtools", "samtools", "samtools", "https://www.htslib.org")),
     ("bedtools", ("BEDTools", "bedtools", "bedtools", "https://bedtools.readthedocs.io")),
     ("bedops", ("BEDOPS", "bedops", "bedops", "https://bedops.readthedocs.io")),
+    ("featurecounts", ("featureCounts (Subread)", "subread", "featurecounts", "https://subread.sourceforge.net")),
     ("seqkit", ("SeqKit", "seqkit", "seqkit", "https://bioinf.shenwei.me/seqkit/")),
     ("ribodetector", ("RiboDetector", "ribodetector", "ribodetector", "https://github.com/hzi-bifo/RiboDetector")),
     ("kraken2", ("Kraken 2", "kraken2", "kraken2", "https://github.com/DerrickWood/kraken2")),
@@ -462,6 +463,13 @@ def processing_sections(X, types):
         "pseudocount of %s, and agreement was summarised with Spearman correlations%s; bin-level comparisons "
         "were repeated on CDS reads only and without rRNA-carrying contigs." % (
             ", ".join(srcs[:-1]) + " and " + srcs[-1], P("COMPARE_MIN_COUNT", "5"), P("COMPARE_PSEUDOCOUNT", "1"), c("spearman")),
+        ("For features with ≥ %s antisense small RNA reads, metatranscriptomic reads were counted separately on the "
+         "annotated strand and on the opposite strand with %s on the metatranscriptome alignments (paired and "
+         "unpaired reads; reads overlapping several features or with several alignments counted fractionally); "
+         "the strand of the mRNA was taken from the CDS reads, and a strand was considered transcribed with ≥ %s "
+         "reads." % (P("COMPARE_MT_MIN_ANTISENSE", "10"), X.tool("featurecounts"), P("COMPARE_MT_MIN_READS", "10"))
+         if D.metaT and P("COMPARE_MT_STRAND", "auto") != "off" and glob.glob(os.path.join(
+             X.a.outdir or ".", "*", "Analysis", "comparison", "metaT_strand", "*.metaT_strand.summary.tsv")) else ""),
     ] if len(srcs) > 1 else []))
     S.append(("Reports and software", [
         "Per-sample reports and all statistics were produced with %s, %s and %s; all tool versions are listed "

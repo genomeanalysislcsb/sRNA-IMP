@@ -1576,14 +1576,22 @@ module_chimera() {
 # metaT chimeras (split reads, discordant pairs) from the IMP3 metaT BAM; once per sample (first sRNA type that
 # gets here), output in Analysis/metaT/chimera/. BAM: CHIMERA_MT_BAM (<ID>/<id> placeholders), else
 # <IMP sample dir>/Assembly/mt.reads.sorted.bam with the IMP dir taken from the metaT_features column.
-chimera_mt() {
-  local gb=$1 dup=$2 bam=${CHIMERA_MT_BAM:-} imp
+# mt_bam SAMPLE BAM_SETTING METAT_FEATURES: metaT BAM path (<ID>/<id> placeholders in the setting, else the IMP dir
+# of the metaT_features column + /Assembly/mt.reads.sorted.bam); empty if neither applies
+mt_bam() {
+  local S=$1 bam=$2 mtf=$3 imp
   if [[ -n "$bam" ]]; then
-    bam=${bam//<ID>/$PREFIX}; bam=${bam//<id>/${PREFIX,,}}
-  elif [[ -n "$IN_MTF" && -d "$IN_MTF" ]]; then
-    imp=${IN_MTF%/}; imp=${imp%/Analysis/annotation}
+    bam=${bam//<ID>/$S}; bam=${bam//<id>/${S,,}}
+  elif [[ -n "$mtf" && -d "$mtf" ]]; then
+    imp=${mtf%/}; imp=${imp%/Analysis/annotation}
     bam=$imp/Assembly/mt.reads.sorted.bam
   fi
+  echo "$bam"
+}
+
+chimera_mt() {
+  local gb=$1 dup=$2 bam
+  bam=$(mt_bam "$PREFIX" "${CHIMERA_MT_BAM:-}" "${IN_MTF:-}")
   if [[ -z "$bam" || ! -s "$bam" ]]; then
     log "metaT chimeras: no metaT BAM (${bam:-set CHIMERA_MT_BAM}) — skipped"
     return 0
@@ -1678,10 +1686,49 @@ run_compare() {   # sample ; uses CMP_* arrays filled by the driver
   set -e
   if [[ $rc -eq 0 ]]; then
     log "$S: comparison written to $CDIR"
+    compare_mt_strand "$S"
   else
     log "$S: comparison FAILED — see $L/$S.compare.log"; tail -n 15 "$L/$S.compare.log" | sed 's/^/    | /'
     CMP_FAILED=1
   fi
+}
+
+# compare_mt_strand SAMPLE: metaT reads per feature on the gene strand and on the opposite strand (stranded metaT BAM,
+# featureCounts -s 1 / -s 2) for the features with antisense sRNA reads -> Analysis/comparison/metaT_strand/
+compare_mt_strand() {
+  local S=$1 SDIR=$OUTDIR/$1 L=$OUTDIR/$1/log_cluster_jobs/compare bam t args=() fc
+  [[ "${COMPARE_MT_STRAND:-auto}" == off ]] && return 0
+  bam=$(mt_bam "$S" "${COMPARE_MT_BAM:-${CHIMERA_MT_BAM:-}}" "${CMP_MTF[$S]:-}")
+  if [[ -z "$bam" || ! -s "$bam" ]]; then
+    [[ -n "${CMP_MTF[$S]:-}${COMPARE_MT_BAM:-}" ]] && log "$S: metaT strand check: no metaT BAM (${bam:-set COMPARE_MT_BAM}) — skipped"
+    return 0
+  fi
+  for t in ${CMP_TYPES[$S]}; do
+    fc=$SDIR/Analysis/$t/assembly/$S.feature_counts.tsv
+    [[ -s "$fc" ]] && args+=(--srna "$t=$fc")
+  done
+  [[ ${#args[@]} -gt 0 ]] || return 0
+  local D=$SDIR/Analysis/comparison/metaT_strand
+  mkdir -p "$D"
+  log "$S: metaT strand of the antisense sRNA loci ($bam) ..."
+  set +e
+  (
+    set -euo pipefail
+    activate_env "${ENV_COMPARE:-${ENV_DEFAULT:-}}"
+    python3 "$SCRIPTS_DIR/srna_mt_strand.py" --sample "$S" --bam "$bam" "${args[@]}" --out-prefix "$D/$S" \
+      --strandedness "${COMPARE_MT_STRAND:-auto}" --featurecounts "${FEATURECOUNTS:-featureCounts}" \
+      --threads "${THREADS:-4}" --min-antisense "${COMPARE_MT_MIN_ANTISENSE:-10}" --min-mt "${COMPARE_MT_MIN_READS:-10}" \
+      > "$L/$S.mt_strand.log" 2>&1
+  )
+  local rc=$?
+  set -e
+  if [[ $rc -eq 0 ]]; then
+    sed 's/^/    /' "$L/$S.mt_strand.log" | tail -n 4
+    log "$S: metaT strand tables in $D"
+  else
+    warn "$S: metaT strand check failed (see $L/$S.mt_strand.log) — comparison kept"
+  fi
+  return 0
 }
 
 # ==================================================================
