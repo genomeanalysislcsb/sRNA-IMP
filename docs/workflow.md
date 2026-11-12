@@ -347,3 +347,24 @@ result is driven by residual rRNA in metaT or by rRNA-carrying contigs.
 `<sample>.all_sources.*.tsv` puts the counts and CPM of all sources side by side as an overview. Feature
 types come from the annotation (`Analysis/annotation/<sample>.bed`); metaT/metaG feature IDs must be the GFF `ID`
 (`featureCounts -g ID`).
+
+**metaT strand of antisense sRNA loci** (`COMPARE_MT_STRAND`, default `auto`; `scripts/srna_mt_strand.py`). The
+IMP metaT feature tables count only the gene strand, so an antisense small RNA on a CDS without metaT reads may
+still sit on a transcribed locus — on the other strand. When the metaT BAM is available (`COMPARE_MT_BAM`, else
+`CHIMERA_MT_BAM`, else `<IMP dir of metaT_features>/Assembly/mt.reads.sorted.bam`), featureCounts counts the metaT
+reads of every sRNA feature twice, `-s 1` and `-s 2` (paired and unpaired reads, overlapping and multi-mapping
+reads as fractions). The run with more CDS reads gives the gene strand (`reverse` for dUTP / TruSeq Stranded; set
+`reverse` or `forward` to fix it); with a gene-strand share below 0.75 the library is reported as unstranded and
+no classes are given. Features with ≥ `COMPARE_MT_MIN_ANTISENSE` antisense sRNA reads are classed with
+≥ `COMPARE_MT_MIN_READS` metaT reads per strand:
+
+| class | metaT reads on | reading |
+| --- | --- | --- |
+| `sRNA strand only` | the strand of the antisense sRNA | the locus is transcribed in the direction of the sRNA, not of the gene; often a short "hypothetical protein" ORF predicted over an unannotated transcript |
+| `both strands` | both | antisense to an expressed gene (sense/antisense pair) |
+| `gene strand only` | the gene strand | metaT sees only the mRNA |
+| `low metaT` | fewer than the minimum on both | — |
+
+Outputs in `Analysis/comparison/metaT_strand/` (see outputs); the summary gives the share of antisense reads
+whose strand metaT supports (`sRNA strand only` + `both strands`). Needs `featureCounts` (subread) in
+`ENV_COMPARE`; samples without a metaT BAM are skipped silently.
