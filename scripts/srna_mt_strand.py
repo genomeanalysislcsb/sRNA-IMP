@@ -5,7 +5,9 @@ The metaT feature tables of IMP count only the gene strand. With a stranded meta
 every feature that carries antisense small RNA reads, whether the gene strand, the opposite strand (= the strand of
 the antisense sRNA) or both are transcribed. featureCounts is run twice on the metaT BAM (-s 1 and -s 2, paired and
 unpaired reads, multi-overlapping and multi-mapping reads as fractions); which of the two is the gene strand is taken
-from the data (--strandedness auto: the run with more reads on CDS) or given.
+from the data (--strandedness auto: per CDS share of the reads, median over 2,000 random CDS) or given. Only the alignments over
+these features (with their mates) are fetched from the indexed BAM before counting, so a sample takes minutes; without
+an index, or with --full, the whole BAM is counted.
 
 Classes per feature with >= --min-antisense antisense sRNA reads (metaT >= --min-mt reads on a strand counts):
   sRNA strand only   metaT only on the antisense (sRNA) strand: the locus is transcribed in the direction of the
@@ -22,6 +24,7 @@ reads), OUT/S.metaT_strand.features.tsv (metaT per feature and strand, all featu
 Unstranded metaT (gene-strand share below --min-stranded) is reported in the summary and gets no classes."""
 import argparse
 import os
+import random
 import subprocess
 import sys
 import tempfile
@@ -68,6 +71,11 @@ def featurecounts(fc, bam, saf, s, threads, tmp, paired):
     return counts
 
 
+def indexed(bam):
+    b = bam[:-4] if bam.endswith(".bam") else bam
+    return any(os.path.exists(x) for x in (bam + ".bai", bam + ".csi", b + ".bai", b + ".csi"))
+
+
 def is_paired(bam):
     """True if the first records of the BAM include paired reads (IMP: pairs + singletons in one BAM)."""
     try:
@@ -93,7 +101,12 @@ def main():
     ap.add_argument("--min-antisense", type=float, default=10)
     ap.add_argument("--min-mt", type=float, default=10)
     ap.add_argument("--min-stranded", type=float, default=0.75,
-                    help="minimum share of CDS metaT reads on the gene strand to treat the library as stranded")
+                    help="minimum median share of a CDS's metaT reads on the gene strand to treat the library as stranded")
+    ap.add_argument("--strand-cds", type=int, default=2000,
+                    help="random CDS (seed 1) counted to infer the strandedness [2000]")
+    ap.add_argument("--full", action="store_true",
+                    help="count on the whole BAM (default: only the alignments over the counted features, "
+                         "fetched with mates from the indexed BAM)")
     a = ap.parse_args()
 
     tabs = {}
@@ -107,34 +120,62 @@ def main():
     if not feats:
         sys.exit("Error: no features")
     os.makedirs(os.path.dirname(os.path.abspath(a.out_prefix)), exist_ok=True)
+    # counted: features with antisense sRNA reads in any library type + random CDS for the strandedness
+    sel = {k for t in tabs for k, v in tabs[t].items() if v["anti"] >= a.min_antisense}
+    allcds = sorted(k for k, v in feats.items() if v["type"] == "CDS" and v["strand"] in "+-" and v["end"] > v["start"])
+    allcds = [k for k in allcds if k not in sel]
+    cds = random.Random(1).sample(allcds, min(a.strand_cds, len(allcds)))
+    sel |= set(cds)
+    count = [k for k in feats if k in sel and feats[k]["strand"] in "+-" and feats[k]["end"] > feats[k]["start"]]
     with tempfile.TemporaryDirectory(dir=os.path.dirname(os.path.abspath(a.out_prefix))) as tmp:
-        saf = os.path.join(tmp, "features.saf")
-        with open(saf, "w") as fh:
+        saf, bed = os.path.join(tmp, "features.saf"), os.path.join(tmp, "regions.bed")
+        with open(saf, "w") as fh, open(bed, "w") as fb:
             fh.write("GeneID\tChr\tStart\tEnd\tStrand\n")
-            for k, v in feats.items():
-                if v["strand"] in "+-" and v["end"] > v["start"]:
-                    fh.write("%s\t%s\t%d\t%d\t%s\n" % (k, v["contig"], v["start"] + 1, v["end"], v["strand"]))
-        paired = is_paired(a.bam)
-        c1 = featurecounts(a.featurecounts, a.bam, saf, 1, a.threads, tmp, paired)
-        c2 = featurecounts(a.featurecounts, a.bam, saf, 2, a.threads, tmp, paired)
-    cds = [k for k, v in feats.items() if v["type"] == "CDS"]
+            for k in count:
+                v = feats[k]
+                fh.write("%s\t%s\t%d\t%d\t%s\n" % (k, v["contig"], v["start"] + 1, v["end"], v["strand"]))
+                fb.write("%s\t%d\t%d\n" % (v["contig"], v["start"], v["end"]))
+        bam, how = a.bam, "whole BAM"
+        if not a.full and indexed(a.bam):
+            sub = os.path.join(tmp, "regions.bam")
+            r = subprocess.run(["samtools", "view", "-@", str(a.threads), "-b", "-M", "-P", "-L", bed, "-o", sub, a.bam],
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if r.returncode == 0 and os.path.getsize(sub) > 0:
+                bam, how = sub, "alignments over %d features (with mates)" % len(count)
+            else:
+                print("samtools view -L failed, counting on the whole BAM:\n%s" % r.stderr[-500:], file=sys.stderr)
+        elif not a.full:
+            print("no BAM index (.bai/.csi) — counting on the whole BAM (samtools index %s makes this fast)" % a.bam,
+                  file=sys.stderr)
+        paired = is_paired(bam)
+        c1 = featurecounts(a.featurecounts, bam, saf, 1, a.threads, tmp, paired)
+        c2 = featurecounts(a.featurecounts, bam, saf, 2, a.threads, tmp, paired)
+    print("%s: counted on the %s" % (a.sample, how), file=sys.stderr)
+    # strandedness: median share of the s2 reads per random CDS with >= --min-mt reads (robust to the few genes with
+    # strong antisense transcription that dominate a sum); the summed shares are reported as well
     t1, t2 = sum(c1.get(k, 0) for k in cds), sum(c2.get(k, 0) for k in cds)
+    sh = sorted(c2.get(k, 0) / (c1.get(k, 0) + c2.get(k, 0)) for k in cds if c1.get(k, 0) + c2.get(k, 0) >= a.min_mt)
+    med2 = (sh[len(sh) // 2] if len(sh) % 2 else (sh[len(sh) // 2 - 1] + sh[len(sh) // 2]) / 2) if sh else 0.5
     if a.strandedness == "auto":
-        own, opp, mode = (c2, c1, "reverse") if t2 >= t1 else (c1, c2, "forward")
+        mode = "reverse" if med2 >= 0.5 else "forward"
     else:
-        own, opp, mode = (c2, c1, "reverse") if a.strandedness == "reverse" else (c1, c2, "forward")
+        mode = a.strandedness
+    own, opp = (c2, c1) if mode == "reverse" else (c1, c2)
+    gene_share = med2 if mode == "reverse" else 1 - med2
     tot = t1 + t2
-    gene_share = (max(t1, t2) if a.strandedness == "auto" else (t2 if mode == "reverse" else t1)) / tot if tot else 0
+    sum_share = ((t2 if mode == "reverse" else t1) / tot) if tot else 0
     stranded = gene_share >= a.min_stranded
     S = a.sample
     with open(a.out_prefix + ".metaT_strand.features.tsv", "w") as fh:
         fh.write("feature_id\ttype\tmetaT_gene_strand\tmetaT_opposite_strand\n")
-        for k, v in feats.items():
+        for k in count:
+            v = feats[k]
             o, p = own.get(k, 0), opp.get(k, 0)
             if o or p:
                 fh.write("%s\t%s\t%.3f\t%.3f\n" % (k, v["type"], o, p))
     summ = [("all", "strandedness", mode if stranded else "unstranded"), ("all", "paired", int(paired)),
-            ("all", "cds_metaT_gene_strand_fraction", "%.4f" % gene_share),
+            ("all", "cds_metaT_gene_strand_fraction_median", "%.4f" % gene_share),
+            ("all", "cds_metaT_gene_strand_fraction_sum", "%.4f" % sum_share), ("all", "cds_counted", len(sh)),
             ("all", "cds_metaT_reads_s1", "%.1f" % t1), ("all", "cds_metaT_reads_s2", "%.1f" % t2)]
     for t, rows in tabs.items():
         sel = {k: v for k, v in rows.items() if v["anti"] >= a.min_antisense}

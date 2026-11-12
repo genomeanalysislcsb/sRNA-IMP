@@ -351,11 +351,13 @@ types come from the annotation (`Analysis/annotation/<sample>.bed`); metaT/metaG
 **metaT strand of antisense sRNA loci** (`COMPARE_MT_STRAND`, default `auto`; `scripts/srna_mt_strand.py`). The
 IMP metaT feature tables count only the gene strand, so an antisense small RNA on a CDS without metaT reads may
 still sit on a transcribed locus — on the other strand. When the metaT BAM is available (`COMPARE_MT_BAM`, else
-`CHIMERA_MT_BAM`, else `<IMP dir of metaT_features>/Assembly/mt.reads.sorted.bam`), featureCounts counts the metaT
-reads of every sRNA feature twice, `-s 1` and `-s 2` (paired and unpaired reads, overlapping and multi-mapping
-reads as fractions). The run with more CDS reads gives the gene strand (`reverse` for dUTP / TruSeq Stranded; set
-`reverse` or `forward` to fix it); with a gene-strand share below 0.75 the library is reported as unstranded and
-no classes are given. Features with ≥ `COMPARE_MT_MIN_ANTISENSE` antisense sRNA reads are classed with
+`CHIMERA_MT_BAM`, else `<IMP dir of metaT_features>/Assembly/mt.reads.sorted.bam`), the alignments over the features
+with antisense sRNA reads and over 2,000 random CDS are fetched with their mates from the indexed BAM
+(`samtools view -M -P -L`; without a `.bai`/`.csi` index the whole BAM is read, which takes much longer) and
+featureCounts counts them twice, `-s 1` and `-s 2` (paired and unpaired reads, overlapping and multi-mapping reads
+as fractions). The gene strand is the one that holds most reads of the random CDS (median share per CDS with
+≥ `COMPARE_MT_MIN_READS` reads; `reverse` for dUTP / TruSeq Stranded; set `reverse` or `forward` to fix it); with a
+median gene-strand share below 0.75 the library is reported as unstranded and no classes are given. Features with ≥ `COMPARE_MT_MIN_ANTISENSE` antisense sRNA reads are classed with
 ≥ `COMPARE_MT_MIN_READS` metaT reads per strand:
 
 | class | metaT reads on | reading |

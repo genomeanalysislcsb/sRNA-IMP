@@ -245,7 +245,7 @@ COMPARE_MIN_COUNT=5           # min raw count in at least one of the two sources
 COMPARE_BIN_BASIS=contig,cds,no_rrna   # bin count bases; first = bins.tsv, others = bins_<basis>.tsv (cds: metaT/metaG CDS reads only; no_rrna: rRNA contigs left out)
 COMPARE_MT_STRAND=${COMPARE_MT_STRAND:-auto}     # metaT strand of the antisense sRNA loci (needs the metaT BAM + featureCounts):
                                                   # auto | reverse (dUTP / TruSeq Stranded) | forward | off
-COMPARE_MT_BAM=${COMPARE_MT_BAM:-}                # "" = CHIMERA_MT_BAM, else <IMP dir of metaT_features>/Assembly/mt.reads.sorted.bam; <ID>/<id> allowed
+COMPARE_MT_BAM=${COMPARE_MT_BAM:-}                # "" = CHIMERA_MT_BAM, else <IMP dir of metaT_features>/Assembly/mt.reads.sorted.bam; <ID>/<id> allowed (quote: '...<id>...')
 COMPARE_MT_MIN_ANTISENSE=${COMPARE_MT_MIN_ANTISENSE:-10}  # antisense sRNA reads per feature to classify it
 COMPARE_MT_MIN_READS=${COMPARE_MT_MIN_READS:-10}  # metaT reads on a strand to call that strand transcribed
 FEATURECOUNTS=${FEATURECOUNTS:-featureCounts}     # subread featureCounts (in ENV_COMPARE)
