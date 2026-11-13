@@ -16,8 +16,8 @@ BXXX1      sRNA-Int  /data/raw/Int/BXXX1.fastq.gz /data/imp/bxxx1/assembly.fa.gz
 | 1 `sample_id` | sample name (letters, digits, `.`, `_`, `-`) | yes |
 | 2 `type` | sRNA type, e.g. `sRNA-Ext`, `sRNA-Int` | yes |
 | 3 `raw_fastq` | raw single-end small-RNA reads, FASTQ or FASTQ.gz | yes, full path |
-| 4 `assembly` | contigs of the sample (IMP metaG/metaT assembly), FASTA(.gz) | yes, full path |
-| 5 `gff` | annotation of the contigs (GFF3, .gz allowed) | yes, full path |
+| 4 `assembly` | contigs of the sample from any metagenome (or metagenome + metatranscriptome) assembly, FASTA(.gz) | yes, full path (`-` for host-only libraries) |
+| 5 `gff` | annotation of the contigs (GFF3, .gz allowed; every feature with an `ID`) | yes, full path (`-` for host-only libraries) |
 | 6 `contig2bin` | `contig<TAB>bin` table (.gz allowed) | optional |
 | 7 `gtdbtk` | bin table with the GTDB `classification` column: GTDB-Tk summary TSV(s), comma-separated for bac120 + ar53, or a combined bin-stats table (first column = bin name); `Completeness` / `Contamination` columns (CheckM/CheckM2) are used for the bin quality; .gz allowed | optional |
 | 8 `metaT_features` | metaT read counts per GFF feature (featureCounts, `-g ID`): one table, a comma-separated list, the IMP `Analysis/annotation` directory, or a tar archive of IMP tables (`mt.counts.gz`, `per_contig_counts.tar.gz`) | optional |
@@ -43,6 +43,40 @@ BXXX1      sRNA-Int  /data/raw/Int/BXXX1.fastq.gz /data/imp/bxxx1/assembly.fa.gz
   available. They are only used by `fragments`, `bins` and `--compare` (`srna_pipeline.sh` only).
 * The same sample may appear with several types. Assembly and annotation are staged once
   (`<sample>/Assembly`, `<sample>/Analysis/annotation`) and shared by all its types.
+
+## Where the assembly inputs come from
+
+sRNA-IMP needs the sample's contigs and their annotation; bins, taxonomy and metaG / metaT counts are optional.
+Any workflow can provide them, as long as the files follow the formats above:
+
+| input | typical tools | format needed |
+| --- | --- | --- |
+| contigs | MEGAHIT, metaSPAdes, IMP3 | FASTA; contig names as in the GFF and the BAMs |
+| annotation | Bakta, Prokka, IMP3 | GFF3 with `ID=` on every feature; types `CDS`, `tRNA`, `rRNA`, `ncRNA`, `tmRNA`, `CRISPR`, `regulatory_region` (`ASSEMBLY_FEATURES`) |
+| bins | MetaBAT2, MaxBin2, CONCOCT, MetaWRAP, DAS Tool | `contig<TAB>bin` |
+| bin taxonomy and quality | GTDB-Tk, CheckM / CheckM2 | table with `user_genome`, `classification`, `Completeness`, `Contamination` |
+| metaG / metaT counts | Bowtie2 or BWA + featureCounts | featureCounts tables per feature (`-g ID`) and per contig |
+
+**IMP3** writes all of these in the expected form; point the columns at its output folders
+([metaT and metaG counts from IMP](#metat-and-metag-counts-from-imp)). **Other workflows:**
+`scripts/srna_prepare_inputs.py` converts their outputs per sample:
+
+```bash
+python3 scripts/srna_prepare_inputs.py --sample S01 --outdir prep \
+    --contigs megahit/S01/final.contigs.fa --gff bakta/S01/S01.gff3 \
+    --bins-dir metabat2/S01/bins --gtdbtk gtdbtk/S01/gtdbtk.bac120.summary.tsv,gtdbtk/S01/gtdbtk.ar53.summary.tsv \
+    --checkm checkm2/S01/quality_report.tsv \
+    --metag-bam mapping/S01.mg.bam --metat-bam mapping/S01.mt.bam --metat-strand reverse \
+    --srna-fastq raw/srna/S01.fastq.gz --type sRNA
+cat prep/*/sample_row.tsv >> samples.tsv
+```
+
+It copies the contigs, cleans the GFF (removes a `##FASTA` section, adds missing `ID`s, turns Prokka's CRISPR
+`repeat_region` into `CRISPR`, drops features on contigs not in the assembly), writes `contig2bin.tsv.gz` from a
+folder of bin FASTA files and a `bins.tsv` from GTDB-Tk and CheckM, counts metaG and metaT reads per feature type and
+per contig with featureCounts as IMP3 does (`-M --fraction`, metaT with its strandedness, metaG unstranded), and
+writes the sample-sheet row. The BAMs are the metaG / metaT reads aligned to the same contigs (sorted; indexed if the
+metaT BAM is also used for the strand check, `COMPARE_MT_BAM`).
 
 ## Raw reads
 

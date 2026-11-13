@@ -1,7 +1,8 @@
 # sRNA-IMP
 
 **sRNA-IMP** is a modular pipeline for small-RNA sequencing (sRNA-seq) of microbiome samples, integrated with the
-metagenomic and metatranscriptomic analysis of the same samples by [IMP3](https://github.com/genomeanalysislcsb/IMP3).
+metagenomic (and metatranscriptomic) assembly of the same samples: contigs, annotation and bins from
+[IMP3](https://github.com/genomeanalysislcsb/IMP3) or any other assembly workflow (`scripts/srna_prepare_inputs.py`).
 It processes intracellular (sRNA-Int) and extracellular (sRNA-Ext) libraries, separates human from microbial reads,
 classifies both against curated small-RNA databases, places the microbial small RNAs on the sample's own contigs,
 genes, bins and functions, compares them with metaT and metaG, and summarises a whole cohort with group statistics.
@@ -12,7 +13,7 @@ genes, bins and functions, compares them with metaT and metaG, and summarises a 
 
 | level | steps |
 |---|---|
-| per library (one sample-sheet row) | trimming + FastQC → library QC → human / non-human split → human classes (miRNA, tRNA, rRNA, other) → microbial classes (RiboDetector rRNA + Kraken 2/Bracken taxonomy, tRNA, miRNA-like, Rfam) → mapping to the sample's co-assembly (sense / antisense per gene and function) → novel ncRNA loci (incl. rescue of unannotated rRNA genes) → tRNA/rRNA fragments and RNA integrity → bins → CRISPR arrays |
+| per library (one sample-sheet row) | trimming + FastQC → library QC → human / non-human split → human classes (miRNA, tRNA, rRNA, other) → microbial classes (RiboDetector rRNA + Kraken 2/Bracken taxonomy, tRNA, miRNA-like, Rfam) → mapping to the sample's assembly (sense / antisense per gene and function) → novel ncRNA loci (incl. rescue of unannotated rRNA genes) → tRNA/rRNA fragments and RNA integrity → bins → CRISPR arrays |
 | per sample | sRNA-Ext vs sRNA-Int vs metaT vs metaG comparisons; PDF/HTML report with QC verdict, MultiQC tables and automated Methods (STAR Protocols or Nature style) |
 | cohort | metadata, QC-based exclusion, group tests, Bray–Curtis / PERMANOVA / NMDS, miRNAs, RNA classes, KEGG/Pfam functions, antisense index, block designs (site, family), covariate-adjusted models — all in Python (no R) |
 

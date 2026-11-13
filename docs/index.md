@@ -2,7 +2,7 @@
 
 sRNA-IMP analyses small-RNA sequencing data of microbiome samples. It takes **one raw
 single-end small-RNA FASTQ per sample** and **sRNA type**, removes adapters and low-quality bases, separates
-**human** from **microbial (non-human)** reads, and classifies both against curated small-RNA databases and against the [IMP3](https://genomeanalysislcsb.github.io/IMP3/) **multi-omic metagenomic assembly** (contigs, annotation, bins) from the same sample.
+**human** from **microbial (non-human)** reads, and classifies both against curated small-RNA databases and against the **sample's own metagenomic assembly** (contigs, annotation, bins) from [IMP3](https://genomeanalysislcsb.github.io/IMP3/) or any other workflow ([inputs](inputs.md#where-the-assembly-inputs-come-from)). A [tutorial](tutorial_tarallo.md) reanalyses a public colorectal cancer cohort from download to cohort report.
 
 The pipeline works on three levels: modules per sample-sheet row (one sRNA library), steps per sample
 (all its libraries together with metaT / metaG) and a cohort summary over all samples.
