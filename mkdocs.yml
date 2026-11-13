@@ -28,6 +28,7 @@ nav:
       - Installation & databases: installation.md
       - Input & sample sheet: inputs.md
       - Running the pipeline: running.md
+      - "Tutorial: Tarallo et al. 2019": tutorial_tarallo.md
   - Workflow:
       - Overview of the steps: workflow.md
       - Read definitions : definitions.md
