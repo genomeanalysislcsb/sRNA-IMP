@@ -571,8 +571,8 @@ module_split() {
     cat "$HTR" >> "$HT"
   fi
 
-  # Host mature miRNAs incl. 3' isomiRs: reads still non-host of HOST_MIRNA_MINLEN..30 nt that are a mature host
-  # miRNA (exact, read inside the mature sequence) after trimming 0..HOST_MIRNA_TAIL 3' nt go to the host. Mature
+  # Host mature miRNAs incl. 3' isomiRs: reads still non-host of <= 30 nt that are a mature host miRNA (exact, read
+  # inside the mature sequence) after trimming 0..HOST_MIRNA_TAIL 3' nt, with >= HOST_MIRNA_MINLEN nt left, go to the host. Mature
   # miRNAs shorter than HOST_MIN_LEN and isomiRs with non-templated 3' additions (A/U) are not found in the genome
   # with exact matching. The contig rescue below still applies to them.
   local N_MIRNA=0
@@ -596,7 +596,7 @@ module_split() {
       seqkit grep -v -f "$TEMPDIR/hmir.ids" "$NONHOST" > "$NONHOST.mir_un" && mv "$NONHOST.mir_un" "$NONHOST"
       awk '{print $1"\t0"}' "$TEMPDIR/hmir.ids" >> "$NM_HOST"
     fi
-    log "  $N_MIRNA reads are mature host miRNAs or 3' isomiRs (HOST_MIRNA=1, >= $MMIN nt, <= $MT 3' nt trimmed) -> host"
+    log "  $N_MIRNA reads are mature host miRNAs or 3' isomiRs (HOST_MIRNA=1, reads <= 30 nt, match >= $MMIN nt after <= $MT 3' nt trimmed) -> host"
   fi
 
   local HUMAN_ALL=$TEMPDIR/human_all.fastq RESCUED=$TEMPDIR/rescued.fastq

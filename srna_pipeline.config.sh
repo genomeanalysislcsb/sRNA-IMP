@@ -101,7 +101,9 @@ HUMAN_MIRNA_TAIL=${HUMAN_MIRNA_TAIL-2}
 # tRNA recall 45 -> 90-96 % for 3' fragments and halves, no extra microbial reads called human). 0 = off.
 HOST_TRNA_CCA=${HOST_TRNA_CCA-1}
 # Mature host miRNAs incl. 3' isomiRs (IDX_HSA_MIRNA) as a fourth host step: reads still non-host of
-# HOST_MIRNA_MINLEN..30 nt that match a mature miRNA exactly after trimming 0..HOST_MIRNA_TAIL 3' nt are host
+# reads of <= 30 nt that match a mature miRNA exactly after trimming 0..HOST_MIRNA_TAIL 3' nt are host; the matched
+# part must be >= HOST_MIRNA_MINLEN nt (it is the read length minus the trimmed tail, so with MINLEN=18 a 17-nt
+# match comes from an 18-19 nt read with a 3' addition)
 # (short mature miRNAs < HOST_MIN_LEN and non-templated 3' additions are missed by exact genome matching).
 # Being benchmarked.
 HOST_MIRNA=${HOST_MIRNA-1}
