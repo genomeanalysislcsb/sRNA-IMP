@@ -16,6 +16,7 @@ validation in the sRNA-IMP paper.
 | 5 | sample sheet and configuration | `srna_make_samples.sh`, `srna_pipeline.config.sh` |
 | 6 | run all libraries, then comparison, reports and cohort | `submit_srna_pipeline.sh` |
 | 7 | follow, resubmit, collect the results | `srna_status.sh`, `srna_pack_summary.sh` |
+| 8 | Fig. 3 of the paper | `paper/fig3_tarallo.py` |
 
 You need sRNA-IMP with its environments and databases ([Installation](installation.md)), the IMP3 databases
 ([IMP3 databases](https://genomeanalysislcsb.github.io/IMP3/databases/)), Apptainer on the compute nodes, a SLURM cluster, and internet access on the node
@@ -204,3 +205,24 @@ With the default settings the cohort report should show what the paper reports: 
 trimmed reads in healthy participants and 3.4 % in cancer; *Escherichia coli* and *Klebsiella pneumoniae* up in
 cancer (log2 about +2 among microbial tRNA reads) and *Agathobacter rectalis* down; miR-200b-3p and miR-30c-5p up;
 miR-21-5p, miR-378a-3p and miR-215-5p unchanged.
+
+## 8. Fig. 3 of the paper
+
+```bash
+python3 $P/paper/fig3_tarallo.py $B/sRNA-IMP $B/fig3_tarallo
+```
+
+The script reads the cohort tables (`Cohort/tables/cohort.sample_stats.tsv`, `cohort.sRNA.mirna.counts.tsv`,
+`cohort.sRNA.genus.counts.tsv`) and the per-sample tRNA species counts
+(`<ID>/Analysis/sRNA/nonhuman/trna/<ID>.trna_species.counts.tsv`), and writes `fig3_tarallo.png`, `.pdf` and
+`.tsv` (every value and p-value in the figure). Libraries excluded by the cohort QC are left out, and libraries
+without classified rRNA reads are left out of panel c. The tests are those of the cohort module (Mann-Whitney vs
+HC, Spearman trend HC < adenoma < CRC, Kruskal-Wallis).
+
+Panel d shows human miRNA reads per library by group. To compare two runs of the same libraries instead (the paper
+compares the earlier strict host settings with the defaults), give the second output folder:
+
+```bash
+python3 $P/paper/fig3_tarallo.py $B/sRNA-IMP $B/fig3_tarallo \
+    --compare-outdir $B/sRNA-IMP_strict --compare-label "earlier strict" --label "final defaults"
+```
