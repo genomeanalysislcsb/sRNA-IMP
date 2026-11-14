@@ -12,8 +12,8 @@ Output in --outdir:
                          srna_make_samples.sh -c -o samples.tsv sample.template.tsv ids.txt
 
 Example (Tarallo et al. 2019):
-  python3 public_prepare.py --prefix tarallo2019/raw --outdir tarallo2019 \\
-      --base /work/projects/expobiome/public/tarallo2019 --type sRNA
+  python3 public_prepare.py --prefix tarallo2019 --outdir . --base $B --type sRNA \\
+      --imp-root $B/imp3_v3.0.0/imp
 """
 import argparse, csv, os, re, sys
 
@@ -37,6 +37,9 @@ def main():
     ap.add_argument("--outdir", required=True)
     ap.add_argument("--base", required=True, help="absolute data directory on the HPC (fastq/ and IMP/ go below it)")
     ap.add_argument("--type", default="sRNA", help="sRNA library type label in the sample sheet (default sRNA)")
+    ap.add_argument("--imp-root", default="",
+                    help="folder with one IMP3 output folder per sample (<imp-root>/<ID>); default <base>/IMP. "
+                         "For an 'imp3 init' project: <project>/imp")
     ap.add_argument("--imp-assembly", default="Assembly/mg.assembly.merged.fa.gz",
                     help="assembly path inside an IMP3 sample dir (check after the IMP3 run)")
     ap.add_argument("--imp-gff", default="Analysis/annotation/annotation_CDS_RNA_hmms.gff.gz")
@@ -80,6 +83,7 @@ def main():
         fh.writelines("\t".join(str(r[c]) for c in cols) + "\n" for r in rows)
 
     fq = os.path.join(a.base, "fastq")
+    imp_root = os.path.abspath(a.imp_root) if a.imp_root else os.path.join(a.base, "IMP")
     with open(os.path.join(a.outdir, "download.sh"), "w") as fh:
         fh.write("#!/bin/bash\n# ENA downloads of the paired runs (resumable; md5 checked)\nset -euo pipefail\n"
                  "mkdir -p %s/srna %s/metag\n"
@@ -96,10 +100,10 @@ def main():
     with open(os.path.join(a.outdir, "imp3_samples.tsv"), "w") as fh:
         fh.write("sample_id\tmetaG_R1\tmetaG_R2\toutdir\n")
         for r in rows:
-            fh.write("%s\t%s/metag/%s_R1.fastq.gz\t%s/metag/%s_R2.fastq.gz\t%s/IMP/%s\n" % (
-                r["sample_id"], fq, r["sample_id"], fq, r["sample_id"], a.base, r["sample_id"]))
+            fh.write("%s\t%s/metag/%s_R1.fastq.gz\t%s/metag/%s_R2.fastq.gz\t%s\n" % (
+                r["sample_id"], fq, r["sample_id"], fq, r["sample_id"], os.path.join(imp_root, r["sample_id"])))
 
-    imp = os.path.join(a.base, "IMP", "<ID>")
+    imp = os.path.join(imp_root, "<ID>")
     j = lambda x: os.path.join(imp, x)
     with open(os.path.join(a.outdir, "sample.template.tsv"), "w") as fh:
         fh.write("# sRNA-IMP sample template for a public dataset (one sRNA library per stool sample, metaG-only IMP3)\n"

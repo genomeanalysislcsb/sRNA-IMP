@@ -12,21 +12,20 @@ validation in the sRNA-IMP paper.
 | 1 | find the runs and pair each small RNA library with its metagenome | `scripts/public_runtable.py` |
 | 2 | sample IDs, group metadata, download script, IMP3 input list, sample template | `scripts/public_prepare.py` |
 | 3 | download the reads (md5-checked) | `download.sh` |
-| 4 | assemble, annotate and bin each metagenome | IMP3, metagenome-only |
+| 4 | assemble, annotate and bin each metagenome | IMP3 v3.0.1 (Apptainer image), metagenome-only |
 | 5 | sample sheet and configuration | `srna_make_samples.sh`, `srna_pipeline.config.sh` |
 | 6 | run all libraries, then comparison, reports and cohort | `submit_srna_pipeline.sh` |
 | 7 | follow, resubmit, collect the results | `srna_status.sh`, `srna_pack_summary.sh` |
 
-You need sRNA-IMP with its environments and databases ([Installation](installation.md)), IMP3 with its databases
-([IMP3 installation](https://genomeanalysislcsb.github.io/IMP3/)), a SLURM cluster, and internet access on the node
+You need sRNA-IMP with its environments and databases ([Installation](installation.md)), the IMP3 databases
+([IMP3 databases](https://genomeanalysislcsb.github.io/IMP3/databases/)), Apptainer on the compute nodes, a SLURM cluster, and internet access on the node
 where you run steps 1–3 (on most clusters the access node).
 
 ## 0. Folders
 
 ```bash
 P=/path/to/sRNA-IMP                  # sRNA-IMP checkout
-I=/path/to/IMP3                      # IMP3 checkout
-B=/path/to/tarallo2019               # data and results (fastq/, IMP/, sRNA-IMP output); a few hundred GB
+B=/path/to/tarallo2019               # data and results (fastq/, imp3_v3.0.0/, sRNA-IMP/); a few hundred GB
 mkdir -p $B && cd $B
 ```
 
@@ -43,8 +42,11 @@ line per participant, one small RNA run and one metagenome run each.
 ## 2. IDs, metadata, download script, templates
 
 ```bash
-python3 $P/scripts/public_prepare.py --prefix tarallo2019 --outdir . --base $B --type sRNA
+python3 $P/scripts/public_prepare.py --prefix tarallo2019 --outdir . --base $B --type sRNA \
+    --imp-root $B/imp3_v3.0.0/imp
 ```
+
+`--imp-root` is where the IMP3 outputs will be: `imp/<ID>` inside the IMP3 project of step 4.
 
 It writes, in the current folder:
 
@@ -75,47 +77,71 @@ About 97 % of the 100,000 reads contain the TruSeq read-1 adapter, which is the 
 
 ## 4. IMP3, metagenome only
 
-Run IMP3 once per sample with an empty metatranscriptome. A config template (keys as in the
-[IMP3 configuration](https://genomeanalysislcsb.github.io/IMP3/); check them against your IMP3 version):
-
-```yaml
-# imp3.template.yaml
-sample: SAMPLE
-outputdir: "BASE/IMP/SAMPLE"
-db_path: "/path/to/IMP3_databases"
-tmp_dir: "BASE/tmp"
-steps: "preprocessing assembly analysis binning taxonomy summary"
-raws:
-  Metagenomics: "BASE/fastq/metag/SAMPLE_R1.fastq.gz BASE/fastq/metag/SAMPLE_R2.fastq.gz"
-  Metatranscriptomics: ""
-assembly:
-  assembler: megahit
-```
-
-One config per sample and one SLURM submission each, with the IMP3 cluster profile:
+The paper used IMP3 v3.0.1 (the v3.0.0 workflow with launcher fixes) and the v3.0.0 Apptainer image from Zenodo
+([doi:10.5281/zenodo.24003091](https://doi.org/10.5281/zenodo.24003091)). Snakemake runs on the host, every rule in
+the container; the databases stay outside ([IMP3 databases](https://genomeanalysislcsb.github.io/IMP3/databases/)).
 
 ```bash
-mkdir -p imp3_configs
-while read id; do
-  sed -e "s|SAMPLE|$id|g" -e "s|BASE|$B|g" imp3.template.yaml > imp3_configs/$id.yaml
-  snakemake -s $I/Snakefile --profile $I/cluster_profile/ --configfile imp3_configs/$id.yaml
-done < ids.txt
+mkdir -p $B/imp3 && cd $B/imp3
+git clone https://github.com/genomeanalysislcsb/IMP3 && git -C IMP3 checkout v3.0.1
+R=https://zenodo.org/records/24003091/files
+wget $R/imp3_3.0.0.sif $R/imp3_submodules_3.0.0.tar.gz $R/SHA256SUMS
+sha256sum -c SHA256SUMS                                    # both files: OK
+tar -xzf imp3_submodules_3.0.0.tar.gz -C IMP3              # submodules/ next to the Snakefile
+I=$B/imp3/IMP3
+SIF=$B/imp3/imp3_3.0.0.sif
+DB=/path/to/imp3_databases
 ```
 
-(or IMP3's `runscripts/runIMP3_submit.sh` for many samples). When the first sample has finished, check that the
-paths in `sample.template.tsv` exist in its output folder; a metagenome-only IMP3 run names them
+One IMP3 project for all samples, with the metagenomes from step 2 as its sample sheet:
 
-| sample-sheet column | IMP3 output |
+```bash
+$I/imp3 init $B/imp3_v3.0.0 --executor slurm --site ulhpc --container $SIF --db $DB    # other clusters: --site generic
+awk -F'\t' 'BEGIN{OFS="\t"; print "sample","mg_r1","mg_r2","mt_r1","mt_r2"} NR>1{print $1,$2,$3,"",""}' \
+    $B/imp3_samples.tsv > $B/imp3_v3.0.0/samples.tsv
+cd $B/imp3_v3.0.0
+sed -i "s|^sample_sheet:.*|sample_sheet: $B/imp3_v3.0.0/samples.tsv|" imp3.yaml
+grep -n "^imp3_dir\|^container\|^db_path\|^sample_sheet\|^tmp_root\|^pre_commands\|^parallel_samples\|^submit_master" imp3.yaml
+```
+
+`imp3 init` takes the container mount points from the image, puts the temporary files on `$SCRATCH` (or into the
+project), and on ULHPC loads the Apptainer module in the jobs (`pre_commands`). Check that `submit_master` uses a
+QoS and time your account allows. Mantis (functional annotation) needs more memory than a standard node gives
+for some of these samples; in `profile/cluster.yaml`, uncomment the `mantis_annot` block (ULHPC: iris `bigmem`, see
+the [IMP3 FAQ](https://genomeanalysislcsb.github.io/IMP3/faq/)).
+
+Run three samples first, one per group, and check their outputs:
+
+```bash
+$I/imp3 run --samples VF00TL,GF12,VF114 --dry-run
+$I/imp3 run --samples VF00TL,GF12,VF114 --submit
+$I/imp3 status
+```
+
+Then all samples. `--submit` sends one Snakemake master per sample as a Slurm job, at most `-j` at a time (the others
+wait in chains), so the masters leave room in the account's job limit for the rule jobs they submit:
+
+```bash
+$I/imp3 run --submit -j 15
+$I/imp3 status | tail -1                                   # e.g. done 80
+```
+
+A sample whose master stops (time limit, a failed rule) is continued from its finished steps by
+`$I/imp3 run --samples <ID> --submit`. A metagenome-only run writes the files `sample.template.tsv` expects:
+
+| sample-sheet column | IMP3 output (`imp3_v3.0.0/imp/<ID>/`) |
 | --- | --- |
 | `assembly` | `Assembly/mg.assembly.merged.fa.gz` |
 | `gff` | `Analysis/annotation/annotation_CDS_RNA_hmms.gff.gz` |
 | `contig2bin` | `Binning/MetaWrap/bins.contigs.gz` |
 | `gtdbtk` | `Stats/all_bin_stats.tsv.gz` |
-| `metaG_features` | `Analysis/annotation` (the `mg.ID.*_counts.tsv` tables) |
+| `metaG_features` | `Analysis/annotation` (the `mg.ID.*_counts.tsv.gz` tables) |
 | `metaG_contigs` | `Stats/mg/mg.assembly.contig_read_count.txt.gz` |
 
-If a name differs, rerun step 2 with the matching `--imp-assembly`, `--imp-gff`, `--imp-bins`, `--imp-gtdb` or
-`--imp-mg-contigs`. Without IMP3, assemble, annotate, bin and map with other tools and convert the outputs with
+Assembly and read mapping are reproducible: a rerun of the same sample gives the same contigs (± 2 of ~50,000) and
+the same reads on contigs. Binning is not fully deterministic; a rerun can move single bins between quality classes.
+
+Without IMP3, assemble, annotate, bin and map with other tools and convert the outputs with
 `scripts/srna_prepare_inputs.py` ([inputs](inputs.md#where-the-assembly-inputs-come-from)).
 
 ## 5. Sample sheet and configuration
