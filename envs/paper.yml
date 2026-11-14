@@ -1,0 +1,11 @@
+# figures of the sRNA-IMP paper (paper/*.py); not needed to run the pipeline
+# create:  micromamba create -n srna_imp_paper -f envs/paper.yml
+name: srna_imp_paper
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11.14
+  - numpy=2.4.6
+  - matplotlib=3.11.2
+  - pandas=3.0.5
+  - scipy=1.18.1

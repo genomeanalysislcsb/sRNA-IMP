@@ -15,7 +15,7 @@ d human miRNA reads per library (with --compare-outdir: this run vs another run 
 different host settings); e the published miRNA markers.
 Tests (the cohort module's own implementations): Mann-Whitney vs HC, Spearman trend HC < adenoma < CRC, Kruskal-Wallis.
 Writes OUTPREFIX.png, OUTPREFIX.pdf and OUTPREFIX.tsv (every number and p-value shown). Needs numpy and matplotlib
-(the sRNA-IMP environment)."""
+(the sRNA-IMP environment or envs/paper.yml)."""
 import argparse
 import csv
 import os
