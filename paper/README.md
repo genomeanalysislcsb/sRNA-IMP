@@ -10,6 +10,7 @@ plotted numbers and p-values.
 | Fig. 1, Supplementary Fig. S1 | `fig1_workflow.py OUT` / `fig1_workflow.py OUT --supp` | none (schematic) |
 | Fig. 2 simulation benchmark | `fig2_benchmark.py OUT --summary final=GLOB --summary smetaseq=GLOB` | `srna_sim_eval.py` summaries ([benchmark](../docs/benchmark.md)) |
 | Fig. 3 Tarallo et al. 2019 | `fig3_tarallo.py OUTDIR OUT [--compare-outdir OUTDIR2]` | pipeline output folder after `--cohort` ([tutorial](../docs/tutorial_tarallo.md#8-fig-3-of-the-paper)) |
+| Supplementary Fig. S2 CRISPR locus | `figS2_crispr_locus.py OUTDIR OUT --samples … [--labels ID=name,…]` | pipeline output folder after the `crispr` module |
 | Fig. 4, Fig. 5 Expobiome HC | `fig45_hc_tables.py OUTDIR TABLES --samples …`, then `fig45_hc_figures.py TABLES OUT` | pipeline output folder after `--compare` (with stranded metaT) |
 
 ## Fig. 2
