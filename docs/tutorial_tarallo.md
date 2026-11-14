@@ -47,7 +47,7 @@ python3 $P/scripts/public_prepare.py --prefix tarallo2019 --outdir . --base $B -
     --imp-root $B/imp3_v3.0.0/imp
 ```
 
-`--imp-root` is where the IMP3 outputs will be: `imp/<ID>` inside the IMP3 project of step 4.
+`--imp-root` is where the IMP3 outputs will be: `imp/<ID>` inside the IMP3 project of step 4. Reads already downloaded elsewhere: `--fastq-dir <dir>` (with `srna/` and `metag/` below it).
 
 It writes, in the current folder:
 

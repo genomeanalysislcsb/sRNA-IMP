@@ -37,6 +37,9 @@ def main():
     ap.add_argument("--outdir", required=True)
     ap.add_argument("--base", required=True, help="absolute data directory on the HPC (fastq/ and IMP/ go below it)")
     ap.add_argument("--type", default="sRNA", help="sRNA library type label in the sample sheet (default sRNA)")
+    ap.add_argument("--fastq-dir", default="",
+                    help="where the reads are or go: <dir>/srna/<ID>.fastq.gz, <dir>/metag/<ID>_R1/_R2.fastq.gz "
+                         "[<base>/fastq]")
     ap.add_argument("--imp-root", default="",
                     help="folder with one IMP3 output folder per sample (<imp-root>/<ID>); default <base>/IMP. "
                          "For an 'imp3 init' project: <project>/imp")
@@ -82,7 +85,7 @@ def main():
         fh.write("\t".join(cols) + "\n")
         fh.writelines("\t".join(str(r[c]) for c in cols) + "\n" for r in rows)
 
-    fq = os.path.join(a.base, "fastq")
+    fq = os.path.abspath(a.fastq_dir) if a.fastq_dir else os.path.join(a.base, "fastq")
     imp_root = os.path.abspath(a.imp_root) if a.imp_root else os.path.join(a.base, "IMP")
     with open(os.path.join(a.outdir, "download.sh"), "w") as fh:
         fh.write("#!/bin/bash\n# ENA downloads of the paired runs (resumable; md5 checked)\nset -euo pipefail\n"
