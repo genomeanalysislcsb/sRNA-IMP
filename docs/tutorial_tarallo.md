@@ -139,8 +139,11 @@ A sample whose master stops (time limit, a failed rule) is continued from its fi
 | `metaG_features` | `Analysis/annotation` (the `mg.ID.*_counts.tsv.gz` tables) |
 | `metaG_contigs` | `Stats/mg/mg.assembly.contig_read_count.txt.gz` |
 
-Assembly and read mapping are reproducible: a rerun of the same sample gives the same contigs (± 2 of ~50,000) and
-the same reads on contigs. Binning is not fully deterministic; a rerun can move single bins between quality classes.
+Assembly and read mapping are reproducible. In 30 samples assembled twice (an earlier IMP3 run and this one), the
+assembly size was identical in all 30, N50 in 29, the contig number differed by at most 5 (of 6,000–186,000), and the
+metagenome reads on contigs were identical in all 30. Binning is not fully deterministic: the number of bins was the
+same in 17 of 30 samples (± 2 otherwise), single bins moved between quality classes, and the GTDB genera of the
+high- and medium-quality bins overlapped with a median Jaccard index of 1.00 (0.87–1.00).
 
 Without IMP3, assemble, annotate, bin and map with other tools and convert the outputs with
 `scripts/srna_prepare_inputs.py` ([inputs](inputs.md#where-the-assembly-inputs-come-from)).
