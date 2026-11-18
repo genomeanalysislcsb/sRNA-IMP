@@ -901,7 +901,7 @@ module_nonhuman() {
   # among ties (-k 1) is arbitrary and made species-level tRNA / Rfam counts differ between runs. The hits are
   # streamed into the counting script; the hits file keeps one hit per read (smallest reference name).
   local BT_TIES=(-k 1 --best)
-  [[ "${NONHUMAN_TIES:-fractional}" == fractional ]] && BT_TIES=(-a --best --strata --reorder)
+  [[ "${NONHUMAN_TIES:-fractional}" == fractional ]] && BT_TIES=(-a --best --strata)
   bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 1 "${BT_TIES[@]}" --fullref -f --un "$TRNA_UN_FA" \
     "$IDX_TRNA_ALL" "$COLLAPSED_FA" 2> "$L/$PREFIX.bowtie.trna.log" \
     | python3 "$SUM_TRNA_TAX_PY" -i - --first-hits-out "$TRNA_HITS" \

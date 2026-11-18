@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """srna_hits.py — shared reader for bowtie (default output) hits of collapsed reads (module nonhuman).
 
-Collapsed read names end in -<count>. With all equally good hits (bowtie -a --best --strata --reorder) a read has
+Collapsed read names end in -<count>. With all equally good hits (bowtie -a --best --strata) a read has
 n lines; iter_reads() yields (count, [hit columns, ...]) per read, so callers can give each hit count/n. With
--k 1 every read has one hit and the weights stay whole. The hits of one read must be adjacent (bowtie --reorder
-or -p 1); a read that appears twice is counted twice.
+-k 1 every read has one hit and the weights stay whole. bowtie 1 writes all hits of a read together, also with
+-p (its --reorder works only with SAM output); a read whose hits are not adjacent stops with an error instead of
+being counted twice.
 
 first_out: write one line per read, the hit with the smallest reference name (deterministic, unlike bowtie's
 choice among ties), in bowtie's format: a small hits file for later steps that only need one hit per read.
@@ -23,6 +24,7 @@ def iter_reads(path, first_out=None):
     fh = sys.stdin if path == "-" else open(path)
     fo = open(first_out, "w") if first_out else None
     cur, hits = None, []
+    seen = set()
 
     def flush():
         if hits:
@@ -40,6 +42,9 @@ def iter_reads(path, first_out=None):
                 g = flush()
                 if g:
                     yield g
+                if cols[0] in seen:
+                    sys.exit("srna_hits: hits of read %s are not adjacent in %s (run bowtie with -p 1)" % (cols[0], path))
+                seen.add(cols[0])
                 cur, hits = cols[0], []
             hits.append(cols)
         g = flush()
