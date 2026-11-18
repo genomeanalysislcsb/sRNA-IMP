@@ -115,6 +115,36 @@ on a lock directory instead of building twice. Building the human genome index t
 The bowtie index of each sample assembly (`Assembly/<sample>.mgmt.assembly.merged.fa.*.ebwt`) is built once
 per sample and shared by the `split` and `novel` modules.
 
+### Collapsed tRNA and Rfam references
+
+Many tRNAs and Rfam regions are identical in hundreds of genomes. With `NONHUMAN_TIES=fractional` (default) every
+equally good hit of a read counts, so bowtie reports every copy: one stool library gave 1.1 × 10⁹ tRNA
+alignments for 0.5 M reads and needed more than 3 h for the tRNA screen. Collapse identical sequences once; the
+counting scripts spread each distinct sequence's share over the genomes that carry it, which gives the same
+tables:
+
+```bash
+D=/path/to/db/smallRNA
+bowtie-inspect $D/nonhuman/tRNA/trna_all > trna_all.fa        # or the FASTA the index was built from
+python3 scripts/srna_collapse_refs.py trna_all.fa $D/nonhuman/tRNA/trna_all_collapsed
+bowtie-build --threads 16 $D/nonhuman/tRNA/trna_all_collapsed.fa $D/nonhuman/tRNA/trna_all_collapsed
+
+bowtie-inspect $D/rfam/rfam_classes > rfam_classes.fa
+python3 scripts/srna_collapse_refs.py rfam_classes.fa $D/rfam/rfam_classes_collapsed
+bowtie-build --threads 16 $D/rfam/rfam_classes_collapsed.fa $D/rfam/rfam_classes_collapsed
+```
+
+and in the configuration
+
+```bash
+IDX_TRNA_ALL=$D/nonhuman/tRNA/trna_all_collapsed
+TRNA_MEMBERS=$D/nonhuman/tRNA/trna_all_collapsed.members.tsv
+IDX_RFAM_CLASSES=$D/rfam/rfam_classes_collapsed
+RFAM_MEMBERS=$D/rfam/rfam_classes_collapsed.members.tsv
+```
+
+`--check` notes when `NONHUMAN_TIES=fractional` runs without them.
+
 ## Checking an installation
 
 ```bash

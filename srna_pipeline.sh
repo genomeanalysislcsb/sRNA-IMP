@@ -899,12 +899,14 @@ module_nonhuman() {
   # without it bowtie cuts the reference name at the first space and aa/anticodon/class/family are lost.
   # NONHUMAN_TIES=fractional: all equally good hits of a read share its count (1/n each); bowtie's choice of one hit
   # among ties (-k 1) is arbitrary and made species-level tRNA / Rfam counts differ between runs. The hits are
-  # streamed into the counting script; the hits file keeps one hit per read (smallest reference name).
+  # streamed into the counting script; the hits file keeps one hit per read (smallest reference name). With collapsed
+  # references (TRNA_MEMBERS / RFAM_MEMBERS, scripts/srna_collapse_refs.py) each distinct sequence is reported once
+  # and its share spread over the genomes carrying it: same counts, far fewer alignments.
   local BT_TIES=(-k 1 --best)
   [[ "${NONHUMAN_TIES:-fractional}" == fractional ]] && BT_TIES=(-a --best --strata)
   bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 1 "${BT_TIES[@]}" --fullref -f --un "$TRNA_UN_FA" \
     "$IDX_TRNA_ALL" "$COLLAPSED_FA" 2> "$L/$PREFIX.bowtie.trna.log" \
-    | python3 "$SUM_TRNA_TAX_PY" -i - --first-hits-out "$TRNA_HITS" \
+    | python3 "$SUM_TRNA_TAX_PY" -i - --first-hits-out "$TRNA_HITS" ${TRNA_MEMBERS:+--members "$TRNA_MEMBERS"} \
       --feature-out "$TRNA_COUNTS" \
       --phylum-out "$TRNA_PHYLUM_COUNTS" \
       --species-out "$TRNA_SPECIES_COUNTS" \
@@ -952,7 +954,8 @@ module_nonhuman() {
   if [[ -s "$RFAM_INPUT_FA" ]]; then
     bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 1 "${BT_TIES[@]}" --fullref -f --un "$RFAM_UN_FA" \
       "$IDX_RFAM_CLASSES" "$RFAM_INPUT_FA" 2> "$L/$PREFIX.bowtie.rfam.log" \
-      | python3 "$SUM_RFAM_TAX_PY" -i - --first-hits-out "$RFAM_HITS" -s "$RFAMSEQ_TXT" \
+      | python3 "$SUM_RFAM_TAX_PY" -i - --first-hits-out "$RFAM_HITS" ${RFAM_MEMBERS:+--members "$RFAM_MEMBERS"} \
+        -s "$RFAMSEQ_TXT" \
       --class-out "$RFAM_CLASS_COUNTS" \
       --taxon-out "$RFAM_TAXON_COUNTS" \
       --class-taxon-out "$RFAM_CLASS_TAXON_COUNTS" \
@@ -2015,10 +2018,16 @@ chk_mod_nonhuman() {
   chk_bt IDX_MIRNA_EUK "$IDX_MIRNA_EUK"
   chk_bt IDX_RFAM_CLASSES "$IDX_RFAM_CLASSES"
   chk_file RFAMSEQ_TXT "$RFAMSEQ_TXT"
+  [[ -n "${TRNA_MEMBERS:-}" ]] && chk_file TRNA_MEMBERS "$TRNA_MEMBERS"
+  [[ -n "${RFAM_MEMBERS:-}" ]] && chk_file RFAM_MEMBERS "$RFAM_MEMBERS"
+  if [[ "${NONHUMAN_TIES:-fractional}" == fractional && ( -z "${TRNA_MEMBERS:-}" || -z "${RFAM_MEMBERS:-}" ) ]]; then
+    echo "#   NOTE     NONHUMAN_TIES=fractional without collapsed tRNA / Rfam references (TRNA_MEMBERS, RFAM_MEMBERS):"
+    echo "#            every identical copy is reported; large libraries can take hours (scripts/srna_collapse_refs.py)"
+  fi
   [[ -n "${RFAM_FAMILY_TXT:-}" ]] && chk_file RFAM_FAMILY_TXT "$RFAM_FAMILY_TXT"
   chk_file "KRAKEN_DB hash.k2d" "$KRAKEN_DB/hash.k2d"
   chk_file "BRACKEN ${BRACKEN_READ_LENGTH}mers" "$BRACKEN_DB/database${BRACKEN_READ_LENGTH}mers.kmer_distrib"
-  chk_script collapse_fastq_to_counted_fasta.py sum_collapsed_bowtie_hits.py \
+  chk_script collapse_fastq_to_counted_fasta.py sum_collapsed_bowtie_hits.py srna_hits.py \
              sum_collapsed_trna_by_taxon.py sum_collapsed_rfam_by_class_and_taxon.py
   return 0
 }

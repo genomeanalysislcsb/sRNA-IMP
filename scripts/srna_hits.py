@@ -9,6 +9,11 @@ being counted twice.
 
 first_out: write one line per read, the hit with the smallest reference name (deterministic, unlike bowtie's
 choice among ties), in bowtie's format: a small hits file for later steps that only need one hit per read.
+
+Collapsed references (srna_collapse_refs.py): the index holds each distinct sequence once (u<N>) and a members
+table lists the original references of each. load_members() reads it; expand() spreads the count of each
+distinct reference equally over its members, once at the end (not per read). In first_out the distinct id is
+replaced by its first member, so later steps see the original reference names.
 """
 import sys
 
@@ -20,7 +25,28 @@ def count_from_name(name):
         return 1
 
 
-def iter_reads(path, first_out=None):
+def load_members(path):
+    """unique id -> [original reference, ...]; empty dict without a members table (references are their own)"""
+    m = {}
+    if path:
+        with open(path) as fh:
+            next(fh, None)
+            for line in fh:
+                u, ref = line.rstrip("\n").split("\t", 1)
+                m.setdefault(u, []).append(ref)
+    return m
+
+
+def expand(counts, members):
+    """{reference or unique id: count} -> [(original reference, count share), ...]"""
+    for u, v in counts.items():
+        refs = members.get(u, (u,))
+        w = v / len(refs)
+        for r in refs:
+            yield r, w
+
+
+def iter_reads(path, first_out=None, members=None):
     fh = sys.stdin if path == "-" else open(path)
     fo = open(first_out, "w") if first_out else None
     cur, hits = None, []
@@ -29,7 +55,10 @@ def iter_reads(path, first_out=None):
     def flush():
         if hits:
             if fo:
-                fo.write("\t".join(min(hits, key=lambda h: h[2])) + "\n")
+                h = list(min(hits, key=lambda h: h[2]))
+                if members:
+                    h[2] = members.get(h[2], [h[2]])[0]
+                fo.write("\t".join(h) + "\n")
             return count_from_name(cur), hits
         return None
 

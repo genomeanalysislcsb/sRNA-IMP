@@ -6,7 +6,7 @@ import sys
 from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from srna_hits import iter_reads, fmt  # noqa: E402
+from srna_hits import iter_reads, fmt, load_members, expand  # noqa: E402
 
 
 def count_from_name(name):
@@ -110,6 +110,7 @@ def main():
     ap.add_argument("-i", "--input", required=True, help="Bowtie hits text ('-' = stdin); all equally good hits of a "
                     "read share its count (1/n each)")
     ap.add_argument("--first-hits-out", default=None, help="write one hit per read (smallest reference name) here")
+    ap.add_argument("--members", default=None, help="members table of a collapsed reference (srna_collapse_refs.py)")
     ap.add_argument("-s", "--rfamseq", required=True, help="rfamseq.txt")
     ap.add_argument("--class-out", required=True, help="TSV: counts by Rfam class")
     ap.add_argument("--taxon-out", required=True, help="TSV: counts by organism/source text")
@@ -133,22 +134,27 @@ def main():
     family_counts = defaultdict(float)
     accession_counts = defaultdict(float)
 
-    for c0, hits in iter_reads(args.input, args.first_hits_out):
-        c = c0 / len(hits)
-        for cols in hits:
-            ref = cols[2]
-            rfam_class, rfam_family, region_id, seq_acc = parse_ref(ref)
-            desc = acc2desc.get(seq_acc, "unknown")
-
-            class_counts[rfam_class] += c
-            taxon_counts[desc] += c
-            class_taxon_counts[(rfam_class, desc)] += c
-            family_counts[rfam_family] += c
-            accession_counts[seq_acc] += c
-            if fam:
-                rt = fam.get(rfam_family, ("", "", "unknown"))[2]
-                type_counts[rt] += c
-                type_taxon_counts[(rt, desc)] += c
+    members = load_members(args.members)
+    per_ref = defaultdict(float)                     # reference (or distinct sequence) -> reads
+    for c0, hits in iter_reads(args.input, args.first_hits_out, members):
+        # every copy of the original reference counts once, as with all hits on the full reference:
+        # a distinct sequence carried by m genomes gets m / (sum of m over the read's hits)
+        m = [len(members.get(h[2], (h[2],))) for h in hits]
+        tot = sum(m)
+        for cols, k in zip(hits, m):
+            per_ref[cols[2]] += c0 * k / tot
+    for ref, c in expand(per_ref, members):
+        rfam_class, rfam_family, region_id, seq_acc = parse_ref(ref)
+        desc = acc2desc.get(seq_acc, "unknown")
+        class_counts[rfam_class] += c
+        taxon_counts[desc] += c
+        class_taxon_counts[(rfam_class, desc)] += c
+        family_counts[rfam_family] += c
+        accession_counts[seq_acc] += c
+        if fam:
+            rt = fam.get(rfam_family, ("", "", "unknown"))[2]
+            type_counts[rt] += c
+            type_taxon_counts[(rt, desc)] += c
 
     with open(args.class_out, "w") as out:
         out.write("rfam_class\tcount\n")
