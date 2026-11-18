@@ -121,7 +121,9 @@ Many tRNAs and Rfam regions are identical in hundreds of genomes. With `NONHUMAN
 equally good hit of a read counts, so bowtie reports every copy: one stool library gave 1.1 × 10⁹ tRNA
 alignments for 0.5 M reads and needed more than 3 h for the tRNA screen. Collapse identical sequences once; the
 counting scripts spread each distinct sequence's share over the genomes that carry it, which gives the same
-tables:
+tables. Module `nonhuman` does this by itself on first use (next to `IDX_TRNA_ALL` / `IDX_RFAM_CLASSES`, or in
+`HOST_INDEX_TMPDIR` when that folder is not writable; a few minutes, then reused by every run). To prepare them
+for a shared database instead:
 
 ```bash
 D=/path/to/db/smallRNA
@@ -143,7 +145,7 @@ IDX_RFAM_CLASSES=$D/rfam/rfam_classes_collapsed
 RFAM_MEMBERS=$D/rfam/rfam_classes_collapsed.members.tsv
 ```
 
-`--check` notes when `NONHUMAN_TIES=fractional` runs without them.
+`--check` notes when they are not set and will be built on first use.
 
 ## Checking an installation
 

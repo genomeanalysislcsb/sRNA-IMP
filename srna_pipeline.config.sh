@@ -136,8 +136,8 @@ RIBO_CHUNK_SIZE=256
 IDX_RFAM_CLASSES=/work/projects/imp/db/smallRNA/rfam/rfam_classes
 IDX_TRNA_ALL=/work/projects/imp/db/smallRNA/nonhuman/tRNA/trna_all
 IDX_MIRNA_EUK=/work/projects/imp/db/smallRNA/nonhuman/miRNAs/mirna_euk_all
-TRNA_MEMBERS=""                # collapsed tRNA reference (IDX_TRNA_ALL built from srna_collapse_refs.py output):
-RFAM_MEMBERS=""                # its .members.tsv; same for Rfam. Strongly recommended with NONHUMAN_TIES=fractional
+TRNA_MEMBERS=""                # collapsed tRNA / Rfam references (srna_collapse_refs.py): .members.tsv, with IDX_TRNA_ALL /
+RFAM_MEMBERS=""                # IDX_RFAM_CLASSES on the collapsed index; "" = built once automatically on first use
 RFAMSEQ_TXT=/work/projects/imp/db/smallRNA/rfam/rfamseq.reduced.tsv
 RFAM_FAMILY_TXT=/work/projects/imp/db/smallRNA/rfam/family.txt.gz   # Rfam family.txt (same release): adds rfam_type counts (rRNA, sRNA, snoRNA, riboswitch, ...); "" = off
 

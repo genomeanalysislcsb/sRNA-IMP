@@ -391,6 +391,41 @@ ensure_trna_cca_index() {
   ensure_host_index "$fa" "" "host mature tRNAs (+CCA)"
 }
 
+# ensure_collapsed_ref IDX_VAR MEMBERS_VAR LABEL: with NONHUMAN_TIES=fractional and no members table given, build once
+# a collapsed copy of the class index (each distinct sequence once, scripts/srna_collapse_refs.py) next to it, or in
+# HOST_INDEX_TMPDIR when that folder is not writable, and point both variables at it. Same counts as the full
+# index, but bowtie reports a sequence shared by many genomes once instead of once per genome.
+ensure_collapsed_ref() {
+  local iv=$1 mv=$2 label=$3 idx prefix fb target t
+  [[ "${NONHUMAN_TIES:-fractional}" == fractional ]] || return 0
+  [[ -n "${!mv:-}" ]] && return 0
+  idx=${!iv}
+  prefix=${idx}_collapsed
+  fb=$HOST_INDEX_TMPDIR/$(basename "$idx")_collapsed
+  for t in "$prefix" "$fb"; do
+    if [[ -s "$t.members.tsv" ]] && bowtie_index_ok "$t"; then
+      printf -v "$iv" '%s' "$t"; printf -v "$mv" '%s' "$t.members.tsv"
+      log "  $label: collapsed reference $t"
+      return 0
+    fi
+  done
+  if dir_writable "$(dirname "$idx")"; then target=$prefix; else mkdir -p "$HOST_INDEX_TMPDIR"; target=$fb; fi
+  acquire_lock "$target.build.lock" 172800
+  if ! { [[ -s "$target.members.tsv" ]] && bowtie_index_ok "$target"; }; then
+    log "  $label: collapsing identical reference sequences once -> $target (minutes; later runs reuse it) ..."
+    { bowtie-inspect "$idx" > "$target.src.fa" \
+        && python3 "$SCRIPTS_DIR/srna_collapse_refs.py" "$target.src.fa" "$target" \
+        && bowtie-build --threads "$THREADS" "$target.fa" "$target"; } > "$target.build.log" 2>&1 \
+      || { release_lock "$target.build.lock"; die "collapsing $iv failed (see $target.build.log)"; }
+    rm -f "$target.src.fa"
+    grep "collapse_refs" "$target.build.log" | sed 's/^/    /' >&2 || true
+  fi
+  release_lock "$target.build.lock"
+  bowtie_index_ok "$target" || die "collapsed $label index incomplete: $target"
+  printf -v "$iv" '%s' "$target"; printf -v "$mv" '%s' "$target.members.tsv"
+  log "  $label: collapsed reference $target"
+}
+
 # bowtie index of the sample assembly (shared by split + novel, built once)
 ensure_assembly_bowtie_index() {
   local LOCK=$ASSEMBLY_DIR/.bowtie.lock
@@ -772,12 +807,14 @@ module_human() {
 #                    tRNA, miRNA-like, Rfam screens, summary
 # ==================================================================
 module_nonhuman() {
-  need seqkit bowtie python3 kraken2 bracken
+  need seqkit bowtie bowtie-inspect bowtie-build python3 kraken2 bracken
   [[ -x "$RIBO_DETECTOR_CPU" ]] || need "$RIBO_DETECTOR_CPU"
   local L=$LOGDIR/nonhuman
   mkdir -p "$L" "$NONHUMANDIR"/{rrna,rrna_tax,collapsed,trna,mirna_like,rfam,unknown}
   [[ -s "$NONHUMANREADS.fastq.gz" ]] || die "missing $NONHUMANREADS.fastq.gz — run module split first"
   make_tempdir
+  ensure_collapsed_ref IDX_TRNA_ALL TRNA_MEMBERS "microbial tRNAs"
+  ensure_collapsed_ref IDX_RFAM_CLASSES RFAM_MEMBERS "Rfam classes"
 
   local COLLAPSE_PY="$SCRIPTS_DIR/collapse_fastq_to_counted_fasta.py"
   local SUM_BOWTIE_PY="$SCRIPTS_DIR/sum_collapsed_bowtie_hits.py"
@@ -2008,7 +2045,7 @@ chk_mod_human() {
   return 0
 }
 chk_mod_nonhuman() {
-  chk_tool seqkit bowtie kraken2 bracken
+  chk_tool seqkit bowtie bowtie-inspect bowtie-build kraken2 bracken
   if [[ -x "$RIBO_DETECTOR_CPU" ]] || command -v "$RIBO_DETECTOR_CPU" >/dev/null 2>&1; then
     _ok ribodetector_cpu "$(command -v "$RIBO_DETECTOR_CPU")"
   else
@@ -2021,13 +2058,13 @@ chk_mod_nonhuman() {
   [[ -n "${TRNA_MEMBERS:-}" ]] && chk_file TRNA_MEMBERS "$TRNA_MEMBERS"
   [[ -n "${RFAM_MEMBERS:-}" ]] && chk_file RFAM_MEMBERS "$RFAM_MEMBERS"
   if [[ "${NONHUMAN_TIES:-fractional}" == fractional && ( -z "${TRNA_MEMBERS:-}" || -z "${RFAM_MEMBERS:-}" ) ]]; then
-    echo "#   NOTE     NONHUMAN_TIES=fractional without collapsed tRNA / Rfam references (TRNA_MEMBERS, RFAM_MEMBERS):"
-    echo "#            every identical copy is reported; large libraries can take hours (scripts/srna_collapse_refs.py)"
+    echo "#   NOTE     collapsed tRNA / Rfam references (TRNA_MEMBERS, RFAM_MEMBERS) not set: module nonhuman builds"
+    echo "#            them once next to IDX_TRNA_ALL / IDX_RFAM_CLASSES (or in HOST_INDEX_TMPDIR) and reuses them"
   fi
   [[ -n "${RFAM_FAMILY_TXT:-}" ]] && chk_file RFAM_FAMILY_TXT "$RFAM_FAMILY_TXT"
   chk_file "KRAKEN_DB hash.k2d" "$KRAKEN_DB/hash.k2d"
   chk_file "BRACKEN ${BRACKEN_READ_LENGTH}mers" "$BRACKEN_DB/database${BRACKEN_READ_LENGTH}mers.kmer_distrib"
-  chk_script collapse_fastq_to_counted_fasta.py sum_collapsed_bowtie_hits.py srna_hits.py \
+  chk_script collapse_fastq_to_counted_fasta.py sum_collapsed_bowtie_hits.py srna_hits.py srna_collapse_refs.py \
              sum_collapsed_trna_by_taxon.py sum_collapsed_rfam_by_class_and_taxon.py
   return 0
 }
