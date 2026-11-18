@@ -139,6 +139,9 @@ IDX_MIRNA_EUK=/work/projects/imp/db/smallRNA/nonhuman/miRNAs/mirna_euk_all
 RFAMSEQ_TXT=/work/projects/imp/db/smallRNA/rfam/rfamseq.reduced.tsv
 RFAM_FAMILY_TXT=/work/projects/imp/db/smallRNA/rfam/family.txt.gz   # Rfam family.txt (same release): adds rfam_type counts (rRNA, sRNA, snoRNA, riboswitch, ...); "" = off
 
+NONHUMAN_TIES=${NONHUMAN_TIES:-fractional}   # tRNA / miRNA-like / Rfam screens: fractional = all equally good hits
+                                             # share a read (1/n, reproducible); first = one hit per read (bowtie -k 1,
+                                             # arbitrary among ties: species-level counts vary between runs)
 MIRNA_LIKE_MINLEN=18
 MIRNA_LIKE_MAXLEN=26
 # module mirna_origin: origin of the miRNA-like reads (miRBase family, human miRNAs, human genome, own contigs)

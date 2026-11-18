@@ -162,11 +162,13 @@ def main():
     a = ap.parse_args()
 
     seqs = collections.OrderedDict()            # sequence -> [reads, assigned miRBase name]
+    seen = set()                                # with all equally good hits a read has several lines: count it once
     with open(a.hits) as fh:
         for line in fh:
             f = line.rstrip("\n").split("\t")
-            if len(f) < 5:
+            if len(f) < 5 or f[0] in seen:
                 continue
+            seen.add(f[0])
             s = f[4].upper().replace("U", "T")
             d = seqs.setdefault(s, [0, f[2]])
             d[0] += count_of(f[0])

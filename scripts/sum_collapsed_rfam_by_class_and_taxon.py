@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 
 import argparse
+import os
+import sys
 from collections import defaultdict
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from srna_hits import iter_reads, fmt  # noqa: E402
 
 
 def count_from_name(name):
@@ -102,7 +107,9 @@ def parse_ref(ref):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("-i", "--input", required=True, help="Bowtie hits text")
+    ap.add_argument("-i", "--input", required=True, help="Bowtie hits text ('-' = stdin); all equally good hits of a "
+                    "read share its count (1/n each)")
+    ap.add_argument("--first-hits-out", default=None, help="write one hit per read (smallest reference name) here")
     ap.add_argument("-s", "--rfamseq", required=True, help="rfamseq.txt")
     ap.add_argument("--class-out", required=True, help="TSV: counts by Rfam class")
     ap.add_argument("--taxon-out", required=True, help="TSV: counts by organism/source text")
@@ -117,28 +124,19 @@ def main():
 
     acc2desc = read_rfamseq_reduced(args.rfamseq)
     fam = read_family_txt(args.family_txt) if args.family_txt else {}
-    type_counts = defaultdict(int)
-    type_taxon_counts = defaultdict(int)
+    type_counts = defaultdict(float)
+    type_taxon_counts = defaultdict(float)
 
-    class_counts = defaultdict(int)
-    taxon_counts = defaultdict(int)
-    class_taxon_counts = defaultdict(int)
-    family_counts = defaultdict(int)
-    accession_counts = defaultdict(int)
+    class_counts = defaultdict(float)
+    taxon_counts = defaultdict(float)
+    class_taxon_counts = defaultdict(float)
+    family_counts = defaultdict(float)
+    accession_counts = defaultdict(float)
 
-    with open(args.input) as f:
-        for line in f:
-            if not line.strip():
-                continue
-
-            cols = line.rstrip("\n").split("\t")
-            if len(cols) < 3:
-                continue
-
-            qname = cols[0]
+    for c0, hits in iter_reads(args.input, args.first_hits_out):
+        c = c0 / len(hits)
+        for cols in hits:
             ref = cols[2]
-            c = count_from_name(qname)
-
             rfam_class, rfam_family, region_id, seq_acc = parse_ref(ref)
             desc = acc2desc.get(seq_acc, "unknown")
 
@@ -155,17 +153,17 @@ def main():
     with open(args.class_out, "w") as out:
         out.write("rfam_class\tcount\n")
         for k in sorted(class_counts):
-            out.write(f"{k}\t{class_counts[k]}\n")
+            out.write(f"{k}\t{fmt(class_counts[k])}\n")
 
     with open(args.taxon_out, "w") as out:
         out.write("taxon\tcount\n")
         for k in sorted(taxon_counts):
-            out.write(f"{k}\t{taxon_counts[k]}\n")
+            out.write(f"{k}\t{fmt(taxon_counts[k])}\n")
 
     with open(args.class_taxon_out, "w") as out:
         out.write("rfam_class\ttaxon\tcount\n")
         for cls, taxon in sorted(class_taxon_counts):
-            out.write(f"{cls}\t{taxon}\t{class_taxon_counts[(cls, taxon)]}\n")
+            out.write(f"{cls}\t{taxon}\t{fmt(class_taxon_counts[(cls, taxon)])}\n")
 
     if args.family_out:
         with open(args.family_out, "w") as out:
@@ -173,28 +171,28 @@ def main():
                 out.write("rfam_family\trfam_id\tdescription\ttype\tcount\n")
                 for k in sorted(family_counts):
                     fid, fdesc, ft = fam.get(k, ("", "", "unknown"))
-                    out.write(f"{k}\t{fid}\t{fdesc}\t{ft}\t{family_counts[k]}\n")
+                    out.write(f"{k}\t{fid}\t{fdesc}\t{ft}\t{fmt(family_counts[k])}\n")
             else:
                 out.write("rfam_family\tcount\n")
                 for k in sorted(family_counts):
-                    out.write(f"{k}\t{family_counts[k]}\n")
+                    out.write(f"{k}\t{fmt(family_counts[k])}\n")
 
     if fam and args.type_out:
         with open(args.type_out, "w") as out:
             out.write("rfam_type\tcount\n")
             for k in sorted(type_counts, key=lambda x: -type_counts[x]):
-                out.write(f"{k}\t{type_counts[k]}\n")
+                out.write(f"{k}\t{fmt(type_counts[k])}\n")
     if fam and args.type_taxon_out:
         with open(args.type_taxon_out, "w") as out:
             out.write("rfam_type\ttaxon\tcount\n")
             for t, taxon in sorted(type_taxon_counts):
-                out.write(f"{t}\t{taxon}\t{type_taxon_counts[(t, taxon)]}\n")
+                out.write(f"{t}\t{taxon}\t{fmt(type_taxon_counts[(t, taxon)])}\n")
 
     if args.accession_out:
         with open(args.accession_out, "w") as out:
             out.write("accession\tcount\n")
             for k in sorted(accession_counts):
-                out.write(f"{k}\t{accession_counts[k]}\n")
+                out.write(f"{k}\t{fmt(accession_counts[k])}\n")
 
 
 if __name__ == "__main__":

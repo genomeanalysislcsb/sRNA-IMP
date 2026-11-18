@@ -149,6 +149,7 @@ def main():
     def foldchanges(ax, vals, labels, name, pseudo, pcol_x=None):
         """vals: list of arrays (one per feature, top to bottom); log2 mean ratio vs HC per group"""
         yy = np.arange(len(vals))[::-1]
+        lfs, pcol = [], []
         for k, x in enumerate(vals):
             if x is None:
                 continue
@@ -159,12 +160,23 @@ def main():
                 ax.scatter(lf, yy[k] + (0.15 if g == "Adenoma" else -0.15), s=38, marker=mk, color=GC[g],
                            edgecolor=INK if sig else "white", linewidth=0.9 if sig else 0.4, zorder=3,
                            label=g + " vs HC" if k == 0 else None)
+                lfs.append(lf)
                 if pcol_x is not None and g == "CRC":
-                    ax.text(pcol_x, yy[k] - 0.15, pfmt(pv), fontsize=6.3, va="center", color=INK2)
+                    pcol.append((yy[k] - 0.15, pfmt(pv)))
                 rows.append((name + labels[k][0], g + "_vs_HC_log2FC", "%.2f" % lf, pv, spearman(order, x)[1],
                              float("nan")))
         ax.axvline(0, color=AXIS, lw=0.8)
         ax.set_yticks(yy, [lab for _, lab in labels], fontsize=6.8)
+        if pcol_x is not None:                      # x range from the data, p values in a column right of it
+            lo, hi = min([-2.0] + lfs) - 0.5, max([2.0] + lfs) + 0.5
+            px = hi + 0.1 * (hi - lo)
+            ax.set_xlim(lo, px + 0.32 * (hi - lo))
+            step = 1 if hi - lo <= 8 else 2
+            ax.set_xticks([t for t in range(int(np.ceil(lo)), int(np.floor(hi)) + 1) if t % step == 0])
+            for y, t in pcol:
+                ax.text(px, y, t, fontsize=6.3, va="center", color=INK2)
+            ax.text(px, len(vals) - 1 + 0.32, "CRC vs HC", fontsize=6.3, color=INK2)
+            ax.axvline(hi + 0.05 * (hi - lo), color=GRID, lw=0.5)
         ax.xaxis.grid(True, color=GRID, lw=0.5); ax.set_axisbelow(True); ax.tick_params(axis="y", length=0)
 
     fig = plt.figure(figsize=(7.2, 6.8))
@@ -185,11 +197,10 @@ def main():
     sp = [("Escherichia coli", "↑"), ("Klebsiella pneumoniae", "↑"), ("Fusobacterium nucleatum", "↑ n.s."),
           ("Bacteroides ovatus", "↓"), ("Agathobacter rectalis", "↓")]
     vals = [T[s] / np.where(tot > 0, tot, np.nan) if s in T else None for s, _ in sp]
-    foldchanges(ax, vals, [(s, "%s. %s (%s)" % (s[0], s.split()[1], p)) for s, p in sp], "tRNA_", 1e-9, pcol_x=2.75)
-    ax.set_xlim(-2.5, 3.8); ax.set_xlabel("log2 fold change vs HC (share of microbial tRNA reads)")
+    foldchanges(ax, vals, [(s, "%s. %s (%s)" % (s[0], s.split()[1], p)) for s, p in sp], "tRNA_", 1e-9, pcol_x=True)
+    ax.set_xlabel("log2 fold change vs HC (share of microbial tRNA reads)")
     ax.set_title("Species from microbial tRNA reads")
-    ax.legend(loc="lower right", bbox_to_anchor=(0.86, 0), fontsize=6.5, handletextpad=0.2)
-    ax.text(2.75, len(sp) - 1 + 0.45, "CRC vs HC", fontsize=6.3, color=INK2)
+    ax.legend(loc="upper left", fontsize=6.5, handletextpad=0.2)
     ax.text(-0.45, -0.3, "b, e: in brackets the change reported by Tarallo et al.; e: outlined p < 0.05",
             transform=ax.transAxes, fontsize=6, color=INK2)
 

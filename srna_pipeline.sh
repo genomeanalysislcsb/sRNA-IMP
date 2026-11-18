@@ -896,27 +896,22 @@ module_nonhuman() {
   local TRNA_PHYLUM_SPECIES_COUNTS=$TRNA_DIR/$PREFIX.trna_phylum_species.counts.tsv
 
   # --fullref: the tRNA / Rfam / miRNA headers contain spaces (species names, Rfam descriptions);
-  # without it bowtie cuts the reference name at the first space and aa/anticodon/class/family are lost
-  bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 1 -k 1 --best --fullref -f --un "$TRNA_UN_FA" \
-    "$IDX_TRNA_ALL" "$COLLAPSED_FA" > "$TRNA_HITS" 2> "$L/$PREFIX.bowtie.trna.log"
-  [[ -e "$TRNA_UN_FA" ]] || : > "$TRNA_UN_FA"
-
-  if [[ -s "$TRNA_HITS" ]]; then
-    python3 "$SUM_TRNA_TAX_PY" -i "$TRNA_HITS" \
+  # without it bowtie cuts the reference name at the first space and aa/anticodon/class/family are lost.
+  # NONHUMAN_TIES=fractional: all equally good hits of a read share its count (1/n each); bowtie's choice of one hit
+  # among ties (-k 1) is arbitrary and made species-level tRNA / Rfam counts differ between runs. The hits are
+  # streamed into the counting script; the hits file keeps one hit per read (smallest reference name).
+  local BT_TIES=(-k 1 --best)
+  [[ "${NONHUMAN_TIES:-fractional}" == fractional ]] && BT_TIES=(-a --best --strata --reorder)
+  bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 1 "${BT_TIES[@]}" --fullref -f --un "$TRNA_UN_FA" \
+    "$IDX_TRNA_ALL" "$COLLAPSED_FA" 2> "$L/$PREFIX.bowtie.trna.log" \
+    | python3 "$SUM_TRNA_TAX_PY" -i - --first-hits-out "$TRNA_HITS" \
       --feature-out "$TRNA_COUNTS" \
       --phylum-out "$TRNA_PHYLUM_COUNTS" \
       --species-out "$TRNA_SPECIES_COUNTS" \
       --aa-out "$TRNA_AA_COUNTS" \
       --anticodon-out "$TRNA_ANTICODON_COUNTS" \
       --phylum-species-out "$TRNA_PHYLUM_SPECIES_COUNTS"
-  else
-    printf "feature\tcount\n"              > "$TRNA_COUNTS"
-    printf "phylum_class\tcount\n"         > "$TRNA_PHYLUM_COUNTS"
-    printf "species\tcount\n"              > "$TRNA_SPECIES_COUNTS"
-    printf "aa\tcount\n"                   > "$TRNA_AA_COUNTS"
-    printf "anticodon\tcount\n"            > "$TRNA_ANTICODON_COUNTS"
-    printf "phylum_class\tspecies\tcount\n" > "$TRNA_PHYLUM_SPECIES_COUNTS"
-  fi
+  [[ -e "$TRNA_UN_FA" ]] || : > "$TRNA_UN_FA"
 
   # ---------------- 5) split tRNA-unmatched by length -----------------
   log "splitting tRNA-unmatched reads by length ..."
@@ -932,7 +927,7 @@ module_nonhuman() {
   local MIRNA_UN_FA=$MIRNA_DIR/$PREFIX.non_tRNA_non_miRNA.L${MIRNA_LIKE_MINLEN}_${MIRNA_LIKE_MAXLEN}.fa
   local MIRNA_COUNTS=$MIRNA_DIR/$PREFIX.mirna_like.counts.tsv
   if [[ -s "$MIRNA_IN_FA" ]]; then
-    bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 0 -k 1 --best --fullref -f --un "$MIRNA_UN_FA" \
+    bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 0 "${BT_TIES[@]}" --fullref -f --un "$MIRNA_UN_FA" \
       "$IDX_MIRNA_EUK" "$MIRNA_IN_FA" > "$MIRNA_HITS" 2> "$L/$PREFIX.bowtie.mirna_like.log"
     [[ -e "$MIRNA_UN_FA" ]] || : > "$MIRNA_UN_FA"
     python3 "$SUM_BOWTIE_PY" -i "$MIRNA_HITS" -o "$MIRNA_COUNTS"
@@ -955,10 +950,9 @@ module_nonhuman() {
 
   cat "$MIRNA_UN_FA" "$LONGER_IN_FA" > "$RFAM_INPUT_FA"
   if [[ -s "$RFAM_INPUT_FA" ]]; then
-    bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 1 -k 1 --best --fullref -f --un "$RFAM_UN_FA" \
-      "$IDX_RFAM_CLASSES" "$RFAM_INPUT_FA" > "$RFAM_HITS" 2> "$L/$PREFIX.bowtie.rfam.log"
-    [[ -e "$RFAM_UN_FA" ]] || : > "$RFAM_UN_FA"
-    python3 "$SUM_RFAM_TAX_PY" -i "$RFAM_HITS" -s "$RFAMSEQ_TXT" \
+    bowtie -p "$THREADS" ${DB_NORC:+--norc} -v 1 "${BT_TIES[@]}" --fullref -f --un "$RFAM_UN_FA" \
+      "$IDX_RFAM_CLASSES" "$RFAM_INPUT_FA" 2> "$L/$PREFIX.bowtie.rfam.log" \
+      | python3 "$SUM_RFAM_TAX_PY" -i - --first-hits-out "$RFAM_HITS" -s "$RFAMSEQ_TXT" \
       --class-out "$RFAM_CLASS_COUNTS" \
       --taxon-out "$RFAM_TAXON_COUNTS" \
       --class-taxon-out "$RFAM_CLASS_TAXON_COUNTS" \
@@ -966,6 +960,7 @@ module_nonhuman() {
       --accession-out "$RFAM_ACCESSION_COUNTS" \
       ${RFAM_FAMILY_TXT:+--family-txt "$RFAM_FAMILY_TXT" --type-out "$RFAM_DIR/$PREFIX.rfam_type.counts.tsv" \
         --type-taxon-out "$RFAM_DIR/$PREFIX.rfam_type_taxon.counts.tsv"}
+    [[ -e "$RFAM_UN_FA" ]] || : > "$RFAM_UN_FA"
     # reads with an Rfam rRNA hit that RiboDetector missed (mostly short LSU/SSU fragments): their sequences,
     # used with the RiboDetector reads to leave rRNA out of the antisense counts and the novel loci
     python3 "$SCRIPTS_DIR/srna_rrna_seqs.py" -i "$RFAM_HITS" -o "$RFAM_DIR/$PREFIX.rfam_rRNA.seqs.gz" \

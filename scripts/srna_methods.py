@@ -361,10 +361,14 @@ def processing_sections(X, types):
             X.tool("bracken"), P("BRACKEN_READ_LENGTH", "50"), P("BRACKEN_MIN_READS", "10"),
             ", ".join(P("BRACKEN_LEVELS", "D P C O F G S").split())),
         "The remaining reads were collapsed into unique sequences and classified hierarchically with %s: tRNAs "
-        "(-v 1 -k 1 --best; %s), then sequences of %s–%s nt as miRNA-like (exact matches, -v 0, to %s), then the "
-        "rest against Rfam sequences grouped by RNA class (-v 1 -k 1; %s); unmatched sequences were classed as "
-        "unknown.%s" % (X.tool("bowtie", False), X.rc("trna_all"), P("MIRNA_LIKE_MINLEN", "18"),
-                        P("MIRNA_LIKE_MAXLEN", "26"), X.rc("mirna_euk"), X.rc("rfam"), strand),
+        "(-v 1; %s), then sequences of %s–%s nt as miRNA-like (exact matches, -v 0, to %s), then the "
+        "rest against Rfam sequences grouped by RNA class (-v 1; %s); unmatched sequences were classed as "
+        "unknown. %s%s" % (X.tool("bowtie", False), X.rc("trna_all"), P("MIRNA_LIKE_MINLEN", "18"),
+                           P("MIRNA_LIKE_MAXLEN", "26"), X.rc("mirna_euk"), X.rc("rfam"),
+                           "A read with several equally good hits counted 1/n for each (-a --best --strata), so that "
+                           "species and family counts do not depend on an arbitrary choice among identical "
+                           "references." if P("NONHUMAN_TIES", "fractional") == "fractional" else
+                           "Each read was assigned to one best hit (-k 1 --best).", strand),
     ]))
     items = [
         "Contigs, gene and ncRNA annotation (%s) and functional annotation (%s; %s) of each sample were taken "

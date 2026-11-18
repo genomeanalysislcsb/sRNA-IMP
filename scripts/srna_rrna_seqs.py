@@ -24,6 +24,7 @@ def main():
     a = ap.parse_args()
     want = set(a.classes.split(","))
     seqs = set()
+    seen = set()
     reads = 0
     with open(a.hits) as fh:
         for ln in fh:
@@ -33,6 +34,9 @@ def main():
             s = c[4].upper().replace("U", "T")
             seqs.add(s)
             seqs.add(s.translate(RC)[::-1])
+            if c[0] in seen:                     # several hits of one read: count the read once
+                continue
+            seen.add(c[0])
             try:
                 reads += int(c[0].rsplit("-", 1)[1])
             except (IndexError, ValueError):

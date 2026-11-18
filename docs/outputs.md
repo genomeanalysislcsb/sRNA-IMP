@@ -46,7 +46,7 @@ types of a sample.
 | human | `Analysis/<type>/human/` summary | reads per human class |
 | nonhuman | `Analysis/<type>/nonhuman/<s>.nonhuman.summary.tsv` | reads per non-human class |
 | nonhuman | `nonhuman/rfam/<s>.rfam_{class,family,type,type_taxon,taxon,accession}.counts.tsv` | Rfam hits per description, family (with id/type), Rfam type, taxon |
-| nonhuman | `nonhuman/trna/<s>.trna_{aa,anticodon,species,phylum_class}.counts.tsv` | microbial tRNA hits |
+| nonhuman | `nonhuman/trna/<s>.trna_{aa,anticodon,species,phylum_class}.counts.tsv` | microbial tRNA hits; a read with n equally good hits counts 1/n for each (`NONHUMAN_TIES`) |
 | nonhuman | `nonhuman/rrna_tax/<s>.rRNA.kraken.report`, `.kraken.min10.report`, `.bracken.<rank>.tsv` | rRNA taxonomy |
 | nonhuman | `nonhuman/trna/*.counts.tsv`, `rfam/*.counts.tsv`, `mirna_like/*.counts.tsv` | class counts |
 | mirna_origin | `nonhuman/mirna_like/<s>.mirna_like.{summary,families,sequences}.tsv` | origin of the miRNA-like reads: contig_only / human_only / both / neither, per family and sequence |
