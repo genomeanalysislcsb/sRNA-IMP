@@ -78,7 +78,7 @@ About 97 % of the 100,000 reads contain the TruSeq read-1 adapter, which is the 
 
 ## 4. IMP3, metagenome only
 
-The paper used IMP3 v3.0.1 (the v3.0.0 workflow with launcher fixes) and the v3.0.0 Apptainer image from Zenodo
+The paper used IMP3 v3.0.1 (the v3.0.0 workflow with launcher fixes and Mantis working outside `/dev/shm`) and the v3.0.0 Apptainer image from Zenodo
 ([doi:10.5281/zenodo.24003091](https://doi.org/10.5281/zenodo.24003091)). Snakemake runs on the host, every rule in
 the container; the databases stay outside ([IMP3 databases](https://genomeanalysislcsb.github.io/IMP3/databases/)).
 
