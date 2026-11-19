@@ -105,6 +105,30 @@ python3 scripts/srna_prepare_inputs.py --sample REF --outdir prep --genomes geno
 * Set `ASSEMBLY_SOURCE=reference` in the configuration, so that reports and Methods describe a reference set and not
   an assembly of the sample.
 
+#### Genomes from an MGnify catalogue
+
+[MGnify genome catalogues](https://www.ebi.ac.uk/metagenomics/browse/genomes) provide species-representative genomes,
+mostly MAGs, with Prokka annotation and GTDB taxonomy for host-associated biomes such as the human gut, oral cavity and
+vagina, mouse gut, pig and chicken gut and cow rumen. `scripts/srna_fetch_mgnify.py` selects and downloads them in the
+form `--genomes` expects. Without a metagenome, the species can come from the library itself: the Bracken species
+table of the rRNA reads (module `nonhuman`) lists what is there.
+
+```bash
+python3 scripts/srna_fetch_mgnify.py --catalogue human-gut --version v2.0.2 --outdir genomes \
+    --bracken out/S01/Analysis/sRNA/nonhuman/rrna_tax/S01.rRNA.bracken.S.tsv --min-reads 10
+    # or --species list.txt, --genomes MGYG000000001,..., --taxa g__Bacteroides; several Bracken tables (a cohort)
+    # comma-separated
+python3 scripts/srna_prepare_inputs.py --sample REF --outdir prep --genomes genomes \
+    --genome-taxonomy genomes/genome_taxonomy.tsv --checkm genomes/genome_quality.tsv
+```
+
+Only species representatives are taken (`--all-genomes` to allow others). `selection.tsv` records why each genome was
+chosen, and `unmatched_species.txt` the requested species without a representative in the catalogue (names can differ
+between GTDB releases, e.g. of the Kraken 2 database and the catalogue). `genome_quality.tsv` passes the catalogue's
+CheckM completeness and contamination on, so MAGs are classed as high or medium quality like bins of an assembly. The
+Prokka annotation has no KEGG, Pfam or COG terms in the form sRNA-IMP reads, so functional summaries stay empty;
+genes, strands, ncRNA classes, genomes and taxa are counted as usual.
+
 Everything downstream works as with an assembly: reads are placed on genes, strands and genomes, novel loci are
 called on the reference genomes, and CRISPR spacers of the reference arrays are counted. What is lost: the contig
 rescue of the host split and the placement cover only organisms in the reference set, reads of other organisms stay

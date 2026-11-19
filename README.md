@@ -3,7 +3,8 @@
 **sRNA-IMP** is a modular pipeline for small-RNA sequencing (sRNA-seq) of microbiome samples, integrated with the
 metagenomic (and metatranscriptomic) assembly of the same samples: contigs, annotation and bins from
 [IMP3](https://github.com/genomeanalysislcsb/IMP3) or any other assembly workflow (`scripts/srna_prepare_inputs.py`), or
-annotated reference genomes when there is no metagenome or metatranscriptome (`srna_prepare_inputs.py --genomes`).
+annotated reference genomes when there is no metagenome or metatranscriptome (`srna_prepare_inputs.py --genomes`, e.g.
+MGnify catalogue genomes chosen from the library's own rRNA taxonomy with `srna_fetch_mgnify.py`).
 It processes intracellular (sRNA-Int) and extracellular (sRNA-Ext) libraries, separates human from microbial reads,
 classifies both against curated small-RNA databases, places the microbial small RNAs on the sample's own contigs,
 genes, bins and functions, compares them with metaT and metaG, and summarises a whole cohort with group statistics.
