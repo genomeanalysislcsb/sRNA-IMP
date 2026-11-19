@@ -796,14 +796,23 @@ def main():
     a = ap.parse_args()
     if a.style == "cell":
         a.style = "star"
-    if a.config and not a.params:
+    if a.config and a.params:
+        sys.exit("[methods] give either --config or --params, not both")
+    for opt, path in (("--config", a.config), ("--params", a.params)):
+        if path and not os.path.isfile(path):
+            sys.exit("[methods] %s %s: file not found (the pipeline removes Cohort/cohort.params.tsv after the "
+                     "cohort step; use --config with the run's configuration)" % (opt, path))
+    if a.config:
         dump = ('source "$1" >/dev/null 2>&1; for v in $(grep -oE "^[A-Z_][A-Z0-9_]*=" "$1" | tr -d = | sort -u); '
                 'do printf "%s\\t%s\\n" "$v" "${!v-}"; done')
         pf = a.out + ".params.tsv"
         with open(pf, "w") as fh:
-            subprocess.run(["bash", "-c", dump, "_", a.config], stdout=fh, check=False)
+            subprocess.run(["bash", "-c", dump, "_", os.path.abspath(a.config)], stdout=fh, check=False)
         a.params = pf
     X = Ctx(a)
+    if not X.P("ADAPTER_3P"):
+        sys.stderr.write("[methods] warning: no run parameters found (ADAPTER_3P is empty); the text falls back to "
+                         "defaults — pass --config with the run's configuration\n")
     types = [t for t in a.types.split(",") if t]
     if not types and a.mode != "sample":
         types = sorted(cohort_facts(X)["libs"])
