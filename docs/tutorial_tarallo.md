@@ -175,6 +175,12 @@ and miRNA host steps). Check environments, databases and inputs:
 $P/srna_pipeline.sh -s samples.tsv -o $B/sRNA-IMP -c tarallo2019.config.sh --check
 ```
 
+`--check` notes when the collapsed tRNA and Rfam references (`TRNA_MEMBERS`, `RFAM_MEMBERS`) are not set. The first
+`nonhuman` job then builds them next to `IDX_TRNA_ALL` and `IDX_RFAM_CLASSES` (a few minutes; other jobs wait on its
+lock) and every later run reuses them. To build them before submitting, or once for a shared database, see
+[Installation](installation.md#collapsed-trna-and-rfam-references). Without them, a read's equally good hits on the
+hundreds of identical tRNA copies make the tRNA screen of a deep library take hours.
+
 ## 6. Run
 
 From the access node (the script submits the jobs itself):
@@ -202,12 +208,24 @@ The results:
 | --- | --- |
 | `sRNA-IMP/<ID>/Report/<ID>.report.html` | per-sample report with QC verdict and generated Methods |
 | `sRNA-IMP/Cohort/cohort.report.html` | cohort report: QC, host load, RNA classes, taxa, miRNAs, functions, group tests and models |
-| `sRNA-IMP/Cohort/*.tsv` | the tables behind every cohort figure |
+| `sRNA-IMP/Cohort/tables/`, `Cohort/stats/` | count tables per library, QC verdicts (`cohort.qc_flags.tsv`), group tests and model coefficients |
 
-With the default settings the cohort report should show what the paper reports: host reads a median 0.75 % of
-trimmed reads in healthy participants and 3.4 % in cancer; *Escherichia coli* and *Klebsiella pneumoniae* up in
-cancer (log2 about +2 among microbial tRNA reads) and *Agathobacter rectalis* down; miR-200b-3p and miR-30c-5p up;
-miR-21-5p, miR-378a-3p and miR-215-5p unchanged.
+Eleven libraries with fewer than 1 M raw reads get a FAIL verdict and are left out of the statistics (69 of 80:
+21 healthy, 23 adenoma, 25 cancer; list with `awk -F'\t' '$5=="no"' $B/sRNA-IMP/Cohort/tables/cohort.qc_flags.tsv`).
+With the default settings the cohort report should show what the paper reports: host reads a median 0.76 % of
+trimmed reads in healthy participants and 3.5 % in cancer; *Escherichia coli* and *Klebsiella pneumoniae* up in
+cancer (log2 about +4 among microbial tRNA reads) and *Agathobacter rectalis* down; miR-30c-5p up in adenoma and
+cancer and miR-200b-3p in adenoma; miR-21-5p, miR-378a-3p and miR-215-5p unchanged.
+
+To repeat the cohort statistics without some libraries (here the five with more than 20 % host reads), list them as
+manual FAIL decisions and write the cohort to a separate folder:
+
+```bash
+printf '%s\t*\tFAIL\thost > 20 %%\n' VF107 VF166 VF208 VF65 VF97 > hihost_exclude.tsv
+cp tarallo2019.config.sh hihost.config.sh
+printf 'QC_EXCLUDE=%s\nCOHORT_DIR=%s\n' "$PWD/hihost_exclude.tsv" "$B/sRNA-IMP/Cohort_nohighhuman" >> hihost.config.sh
+$P/srna_pipeline.sh -s samples.tsv -o $B/sRNA-IMP -c hihost.config.sh --cohort --skip-env-check
+```
 
 ## 8. Fig. 3 of the paper
 

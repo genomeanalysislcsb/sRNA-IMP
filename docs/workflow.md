@@ -110,11 +110,13 @@ to each). `summarize_human_subtree.py` writes the summary table per class.
    ≥ `KRAKEN_REPORT_MINREADS` clade reads and (species) ≥ `KRAKEN_MIN_DISTINCT_MINIMIZERS` distinct minimizers; Bracken (`-r 50 -t BRACKEN_MIN_READS`) on the filtered report
    at the ranks `K P C O F G S`.
 3. non-rRNA reads are **collapsed** to unique sequences with counts.
-4. **tRNA**: bowtie `-v 1 -k 1 --fullref` against microbial tRNAs → counts per tRNA, phylum/class, species, amino
-   acid, anticodon.
+4. **tRNA**: bowtie `-v 1 -a --best --strata --fullref` against microbial tRNAs; a sequence with n equally good hits
+   counts 1/n for each (`NONHUMAN_TIES=fractional`; `first` = bowtie `-k 1`, one arbitrary hit) → counts per tRNA,
+   phylum/class, species, amino acid, anticodon. The tRNA and Rfam indices hold each distinct sequence once
+   ([collapsed references](installation.md#collapsed-trna-and-rfam-references), built on first use).
 5. tRNA-unmatched sequences of 18–26 nt (`MIRNA_LIKE_*`) → **miRNA-like**: exact match (`-v 0`) to
    eukaryotic miRNAs.
-6. everything left (miRNA-unmatched 18–26 nt + all > 26 nt) → **Rfam classes**: bowtie `-v 1 -k 1 --fullref` (the full reference header, with spaces, is needed to parse class, family and taxon);
+6. everything left (miRNA-unmatched 18–26 nt + all > 26 nt) → **Rfam classes**: bowtie `-v 1 -a --best --strata --fullref`, equally good hits shared as for tRNAs (the full reference header, with spaces, is needed to parse class, family and taxon);
    counts per class, taxon, family and accession.
 7. remaining sequences = **unknown** (`nonhuman/unknown/<sample>.unknown.fa`).
 

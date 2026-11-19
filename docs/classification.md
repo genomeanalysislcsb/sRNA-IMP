@@ -57,9 +57,9 @@ flowchart LR
 | class | method | outputs (`Analysis/<type>/nonhuman/`) |
 | --- | --- | --- |
 | `rRNA_reads` | RiboDetector (deep-learning rRNA classifier) | `rrna/`; taxonomy in `rrna_tax/` (Kraken2 report, filtered report, Bracken per rank) |
-| `tRNA` | bowtie `-v 1 -k 1 --best` on microbial tRNAs | `trna/`: per tRNA, phylum/class, species, amino acid, anticodon, phylum × species |
+| `tRNA` | bowtie `-v 1 -a --best --strata` on microbial tRNAs (collapsed reference), equally good hits 1/n each | `trna/`: per tRNA, phylum/class, species, amino acid, anticodon, phylum × species |
 | `miRNA_like` | 18–26 nt only, exact match (`-v 0`) to eukaryotic mature miRNAs | `mirna_like/` |
-| `Rfam_classified` | bowtie `-v 1 -k 1 --best` on Rfam sequences grouped by class | `rfam/`: per class, taxon, class × taxon, family, accession |
+| `Rfam_classified` | bowtie `-v 1 -a --best --strata` on Rfam sequences grouped by class (collapsed reference), equally good hits 1/n each | `rfam/`: per class, taxon, class × taxon, family, accession |
 | `unknown` | none of the above | `unknown/<sample>.unknown.fa` |
 
 `<sample>.nonhuman.summary.tsv` lists input, rRNA, non-rRNA, collapsed, tRNA, miRNA-like,
