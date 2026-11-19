@@ -14,7 +14,7 @@ Text helpers (used by srna_report.py, srna_cohort.py and srna_methods.py):
 
   D.unit       "fraction" when Int and Ext are present, else "library type"
   D.omics      "metagenome and metatranscriptome" / "metagenome" / "" (what the sRNA is compared with)
-  D.assembly   "co-assembly of the metagenomic and metatranscriptomic reads" or "assembly of the metagenomic reads"
+  D.assembly   "assembly of the metagenomic and metatranscriptomic reads" or "assembly of the metagenomic reads"
   D.libraries  "small RNA libraries (intracellular and extracellular fractions)" or "small RNA libraries"
   D.sample_type  free label of the sample material (SAMPLE_TYPE, default "stool")
   D.host       host word (HOST_NAME, default "human")
@@ -81,7 +81,7 @@ class Design:
     @property
     def assembly(self):
         if self.metaT:
-            return "co-assembly of the metagenomic and metatranscriptomic reads"
+            return "assembly of the metagenomic and metatranscriptomic reads"
         return "assembly of the metagenomic reads"
 
     @property

@@ -403,7 +403,7 @@ def processing_sections(X, types):
                      "multi-omic comparisons." % (
                          P("RRNA_RESCUE_MIN_ANTISENSE", "20"),
                          int(round(float(P("RRNA_RESCUE_MAX_SENSE_RATIO", "0.1")) * 100)), X.tool("infernal")))
-    S.append(("Mapping to the sample's co-assembly and gene-level quantification", items))
+    S.append(("Mapping to the sample's own assembly and gene-level quantification", items))
     S.append(("Genomic bins", [
         "Contigs were assigned to metagenome-assembled genomes (%s) with taxonomy from %s; bins were classified as "
         "high, medium or low quality from completeness and contamination, and small RNA counts were summed per "
@@ -477,9 +477,10 @@ def processing_sections(X, types):
              X.a.outdir or ".", "*", "Analysis", "comparison", "metaT_strand", "*.metaT_strand.summary.tsv")) else ""),
     ] if len(srcs) > 1 else []))
     S.append(("Reports and software", [
-        "Per-sample reports and all statistics were produced with %s, %s and %s; all tool versions are listed "
-        "in %s." % (X.tool("python"), X.tool("numpy"), X.tool("matplotlib"),
-                    "the Key resources table" if X.a.style == "star" else "Supplementary Table [CHECK]"),
+        "Per-sample reports and all statistics were produced with %s, %s and %s; %s." % (
+            X.tool("python"), X.tool("numpy"), X.tool("matplotlib"),
+            "all tool versions are listed in the Key resources table" if X.a.style == "star" else
+            "tool versions are given with each step, as read from the environments of the run"),
     ]))
     return S
 
@@ -654,7 +655,7 @@ STAR_CMD = {
     "Separation of human and microbial reads": "prep,split",
     "Human small RNA classes": "human",
     "Microbial small RNA classes and rRNA-based taxonomy": "nonhuman",
-    "Mapping to the sample's co-assembly and gene-level quantification": "assembly",
+    "Mapping to the sample's own assembly and gene-level quantification": "assembly",
     "Genomic bins": "bins",
     "Detection of novel small RNA loci": "novel",
     "tRNA and rRNA fragments and RNA integrity": "fragments",
@@ -687,7 +688,7 @@ def render_star(X, sections, title, cohort):
            "## Before you begin", "",
            "1. Process the %s reads of each sample with the integrated multi-omic workflow (%s, annotation, "
            "binning)." % ("metagenomic and metatranscriptomic" if X.D.metaT else "metagenomic",
-                          "co-assembly" if X.D.metaT else "assembly"),
+                          "assembly"),
            "2. Install the software environments (envs/*.yml) and the reference databases listed in the key "
            "resources table, and set their paths in srna_pipeline.config.sh.",
            "3. Prepare a sample sheet with the small RNA FASTQ files and the multi-omic outputs per sample"
