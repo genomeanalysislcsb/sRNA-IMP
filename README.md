@@ -62,8 +62,9 @@ See [Installation](https://genomeanalysislcsb.github.io/sRNA-IMP/installation/),
 
 ## Citation and license
 
-LCSB BioCore, University of Luxembourg. Please cite the repository and the tools listed in the automated Methods
-of your run. License: see [LICENSE](LICENSE).
+LCSB BioCore, University of Luxembourg. Please cite sRNA-IMP as given in [CITATION.cff](CITATION.cff) (GitHub:
+"Cite this repository"; the archived release has a Zenodo DOI), together with the tools listed in the Methods text of
+your run. Changes per release: [CHANGELOG.md](CHANGELOG.md). License: MIT, see [LICENSE](LICENSE).
 
 ## Related tools
 

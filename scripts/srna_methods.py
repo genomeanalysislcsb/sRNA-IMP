@@ -116,9 +116,19 @@ def git_version():
     try:
         v = subprocess.run(["git", "-C", HERE, "describe", "--always", "--dirty", "--tags"], capture_output=True,
                            text=True, timeout=10).stdout.strip()
-        return v or None
+        if v:
+            return v
     except Exception:
-        return None
+        pass
+    for p in (os.path.join(HERE, "..", "VERSION"), os.path.join(HERE, "..", "container", "VERSION")):
+        try:                               # container image (/opt/srna-imp/VERSION, from container/build.sh)
+            with open(p) as fh:
+                v = fh.read().strip()
+            if v:
+                return v
+        except OSError:
+            pass
+    return None
 
 
 def read_tsv(path):

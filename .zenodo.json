@@ -1,0 +1,15 @@
+{
+  "title": "sRNA-IMP: assembly-guided analysis of host and microbial small RNAs in host-associated microbiomes",
+  "upload_type": "software",
+  "version": "1.0.0",
+  "description": "<p>sRNA-IMP separates host from microbial reads in small RNA sequencing data of host-associated microbiomes with strict rules and a rescue against the sample's own contigs, classifies both against curated small RNA databases, and maps the microbial reads to an assembly of the same sample (from its metagenome and/or metatranscriptome) or to annotated reference genomes. It counts reads per gene, strand, contig, genome and function, calls novel small RNA loci, profiles tRNA and rRNA fragments and crRNAs, compares small RNA with metagenomic and metatranscriptomic coverage, and writes per-sample and cohort reports with QC verdicts and generated Methods text. Bash workflow with Python helpers; conda environments and an Apptainer image.</p>",
+  "creators": [
+    {"name": "May, Patrick", "affiliation": "Luxembourg Centre for Systems Biomedicine (LCSB), University of Luxembourg"}
+  ],
+  "license": "MIT",
+  "keywords": ["small RNA sequencing", "microbiome", "metagenomics", "metatranscriptomics", "host-microbe separation", "tRNA fragments", "CRISPR RNA", "workflow"],
+  "related_identifiers": [
+    {"identifier": "https://genomeanalysislcsb.github.io/sRNA-IMP/", "relation": "isDocumentedBy", "resource_type": "publication-softwaredocumentation"},
+    {"identifier": "10.5281/zenodo.24003091", "relation": "requires", "resource_type": "software"}
+  ]
+}

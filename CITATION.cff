@@ -1,0 +1,30 @@
+# Citation metadata (https://citation-file-format.github.io). GitHub shows it as "Cite this repository";
+# Zenodo reads .zenodo.json. Add the co-authors of the release and, once published, the paper as
+# preferred-citation.
+cff-version: 1.2.0
+message: "If you use sRNA-IMP, please cite it as below, together with the tools listed in the Methods text of your run."
+title: "sRNA-IMP: assembly-guided analysis of host and microbial small RNAs in host-associated microbiomes"
+type: software
+version: 1.0.0
+date-released: 2026-11-19
+license: MIT
+repository-code: "https://github.com/genomeanalysislcsb/sRNA-IMP"
+url: "https://genomeanalysislcsb.github.io/sRNA-IMP/"
+authors:
+  - family-names: May
+    given-names: Patrick
+    affiliation: "Luxembourg Centre for Systems Biomedicine (LCSB), University of Luxembourg"
+keywords:
+  - small RNA sequencing
+  - microbiome
+  - metagenomics
+  - metatranscriptomics
+  - host-microbe separation
+  - tRNA fragments
+  - CRISPR RNA
+  - workflow
+references:
+  - type: software
+    title: "IMP3"
+    url: "https://github.com/genomeanalysislcsb/IMP3"
+    doi: "10.5281/zenodo.24003091"
