@@ -126,8 +126,11 @@ Only species representatives are taken (`--all-genomes` to allow others). `selec
 chosen, and `unmatched_species.txt` the requested species without a representative in the catalogue (names can differ
 between GTDB releases, e.g. of the Kraken 2 database and the catalogue). `genome_quality.tsv` passes the catalogue's
 CheckM completeness and contamination on, so MAGs are classed as high or medium quality like bins of an assembly. The
-Prokka annotation has no KEGG, Pfam or COG terms in the form sRNA-IMP reads, so functional summaries stay empty;
-genes, strands, ncRNA classes, genomes and taxa are counted as usual.
+MGnify GFFs write tRNAs, rRNAs, tmRNAs and cis-regulatory elements (riboswitches, leaders) as `ncRNA` features from
+an Rfam search; `srna_prepare_inputs.py` gives them their own types from the Rfam accession or product (it does
+this for any GFF with such features and reports the numbers). The GFFs have no CRISPR arrays, so module `crispr`
+finds none, and no KEGG, Pfam or COG terms in the form sRNA-IMP reads, so functional summaries stay empty; genes,
+strands, RNA classes, genomes and taxa are counted as usual. Re-annotating the genomes with Bakta adds CRISPR arrays.
 
 Everything downstream works as with an assembly: reads are placed on genes, strands and genomes, novel loci are
 called on the reference genomes, and CRISPR spacers of the reference arrays are counted. What is lost: the contig

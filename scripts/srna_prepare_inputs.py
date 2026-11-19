@@ -67,9 +67,37 @@ def contigs_and_lengths(path, out):
     return lens
 
 
+# Rfam-based annotations (MGnify catalogues, Infernal) write tRNAs, rRNAs, tmRNAs and cis-regulatory elements as
+# feature type ncRNA with rfam=RFxxxxx / product=...; sRNA-IMP counts them by feature type, so they are re-typed.
+RFAM_TYPE = {"RF00005": "tRNA", "RF01852": "tRNA",                                   # tRNA, tRNA-Sec
+             "RF00001": "rRNA", "RF00002": "rRNA", "RF00177": "rRNA", "RF01959": "rRNA", "RF01960": "rRNA",
+             "RF02540": "rRNA", "RF02541": "rRNA", "RF02542": "rRNA", "RF02543": "rRNA", "RF02545": "rRNA",
+             "RF00023": "tmRNA", "RF01849": "tmRNA", "RF01850": "tmRNA", "RF01851": "tmRNA", "RF02144": "tmRNA"}
+REGULATORY = re.compile(r"riboswitch|leader|thermoregulator|thermometer|attenuator|\belement\b", re.I)
+
+
+def retype_ncrna(attrs):
+    """feature type for an ncRNA feature from its Rfam accession or product, or None to keep ncRNA"""
+    m = re.search(r"(?:^|;)(?:rfam|Dbxref=RFAM|db_xref=RFAM)[=:]?(RF\d{5})", attrs, re.I) or \
+        re.search(r"\b(RF\d{5})\b", attrs)
+    if m and m.group(1).upper() in RFAM_TYPE:
+        return RFAM_TYPE[m.group(1).upper()]
+    prod = re.search(r"(?:^|;)product=([^;]+)", attrs)
+    prod = prod.group(1) if prod else ""
+    if re.fullmatch(r"tRNA(-\w+)?", prod):
+        return "tRNA"
+    if re.search(r"ribosomal RNA|\brRNA\b", prod, re.I):
+        return "rRNA"
+    if re.search(r"transfer-messenger RNA|tmRNA", prod, re.I):
+        return "tmRNA"
+    if REGULATORY.search(prod):
+        return "regulatory_region"
+    return None
+
+
 def clean_gff(path, out, contigs):
     """drop ##FASTA, give every feature an ID, map Prokka CRISPR repeat_region -> CRISPR, check contig names"""
-    n_type, missing, new_ids = {}, set(), 0
+    n_type, missing, new_ids, retyped = {}, set(), 0, {}
     with op(path) as fh, gzip.open(out, "wt") as fo:
         fo.write("##gff-version 3\n")
         for line in fh:
@@ -85,6 +113,11 @@ def clean_gff(path, out, contigs):
                 continue
             if f[2] == "repeat_region" and re.search(r"rpt_family=CRISPR", f[8], re.I):
                 f[2] = "CRISPR"
+            elif f[2] == "ncRNA":
+                t = retype_ncrna(f[8])
+                if t:
+                    f[2] = t
+                    retyped[t] = retyped.get(t, 0) + 1
             if f[6] not in "+-.":
                 f[6] = "."
             if not re.search(r"(?:^|;)ID=", f[8]):
@@ -92,6 +125,9 @@ def clean_gff(path, out, contigs):
                 f[8] = "ID=feature_%d;%s" % (new_ids, f[8].strip(";")) if f[8] not in ("", ".") else "ID=feature_%d" % new_ids
             n_type[f[2]] = n_type.get(f[2], 0) + 1
             fo.write("\t".join(f) + "\n")
+    if retyped:
+        print("ncRNA features re-typed from their Rfam accession / product: %s" % ", ".join(
+            "%s %d" % kv for kv in sorted(retyped.items())), file=sys.stderr)
     if missing:
         print("warning: %d GFF contig names not in the assembly (e.g. %s) — features dropped" % (
             len(missing), ", ".join(sorted(missing)[:3])), file=sys.stderr)
