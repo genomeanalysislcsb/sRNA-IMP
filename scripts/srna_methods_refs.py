@@ -50,6 +50,12 @@ REFS = {
     "gtrnadb": (["Chan, P.P.", "Lowe, T.M."], 2016, "GtRNAdb 2.0: an expanded database of transfer RNA genes "
                 "identified in complete and draft genomes", "Nucleic Acids Res.", "44", "D184-D189",
                 "10.1093/nar/gkv1309"),
+    "rfam15": (["Ontiveros-Palacios, N.", "Cooke, E.", "Nawrocki, E.P.", "Triebel, S.", "Marz, M.", "Rivas, E.",
+                "Griffiths-Jones, S.", "Petrov, A.I.", "Bateman, A.", "Sweeney, B.", "et al."], 2025,
+               "Rfam 15: RNA families database in 2025", "Nucleic Acids Res.", "53", "D258-D267",
+               "10.1093/nar/gkae1023"),
+    "ensembl": (["Dyer, S.C.", "Austine-Orimoloye, O.", "Azov, A.G.", "Barba, M.", "Barnes, I.", "et al."], 2025,
+                "Ensembl 2025", "Nucleic Acids Res.", "53", "D948-D957", "10.1093/nar/gkae1071"),
     "rfam": (["Kalvari, I.", "Nawrocki, E.P.", "Ontiveros-Palacios, N.", "Argasinska, J.", "Lamkiewicz, K.",
               "Marz, M.", "Griffiths-Jones, S.", "Toffano-Nioche, C.", "Gautheret, D.", "Weinberg, Z.", "et al."],
              2021, "Rfam 14: expanded coverage of metagenomic, viral and microRNA families",
