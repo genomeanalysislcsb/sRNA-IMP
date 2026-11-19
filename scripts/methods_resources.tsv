@@ -7,13 +7,13 @@
 host_genome	the human T2T-CHM13v2.0 assembly	v2.0	NCBI	GCF_009914755.1	t2t
 hsa_mirna	miRBase human mature miRNAs	release 22.1	miRBase	https://www.mirbase.org	mirbase
 hsa_trna	GtRNAdb human nuclear and mitochondrial tRNAs	release 22	GtRNAdb	https://gtrnadb.ucsc.edu	gtrnadb
-hsa_rrna	human nuclear and mitochondrial rRNA sequences	release 115	Ensembl	https://ftp.ensembl.org/pub/release-115/fasta/homo_sapiens/ncrna	ensembl	
-hsa_other	human snRNA, snoRNA, Y RNA, vault RNA and other ncRNA sequences	release 115	Ensembl	https://ftp.ensembl.org/pub/release-115/fasta/homo_sapiens/ncrna	ensembl	
+hsa_rrna	human nuclear and mitochondrial rRNA sequences	release 115	Ensembl	https://ftp.ensembl.org/pub/release-115/fasta/homo_sapiens/ncrna	ensembl
+hsa_other	human snRNA, snoRNA, Y RNA, vault RNA and other ncRNA sequences	release 115	Ensembl	https://ftp.ensembl.org/pub/release-115/fasta/homo_sapiens/ncrna	ensembl
 trna_all	GtRNAdb bacterial and archaeal tRNAs	release 22	GtRNAdb	https://gtrnadb.ucsc.edu	gtrnadb
 mirna_euk	miRBase eukaryotic mature miRNAs	release 22.1	miRBase	https://www.mirbase.org	mirbase
 rfam	Rfam	release 15.0	Rfam	https://rfam.org	rfam15
 kraken_db	a Kraken 2 database of GTDB genome representatives	GTDB R226, build 2025-06-09	Kraken 2 index collection (Langmead lab)	https://genome-idx.s3.amazonaws.com/kraken/k2_gtdb_genome_reps_20250609.tar.gz	gtdb
-contaminants	the PhiX174 genome and UniVec_Core	build 10.0	NCBI	https://ftp.ncbi.nlm.nih.gov/pub/UniVec/		
+contaminants	the PhiX174 genome and UniVec_Core	build 10.0	NCBI	https://ftp.ncbi.nlm.nih.gov/pub/UniVec/
 imp	IMP3	v3.0.0	Zenodo	https://doi.org/10.5281/zenodo.24003091	imp
 annotation	Bakta	v1.9.3	Bakta	https://github.com/oschwengers/bakta	bakta
 functional	Mantis	v1.5.5	Mantis	https://github.com/PedroMTQ/mantis	mantis
