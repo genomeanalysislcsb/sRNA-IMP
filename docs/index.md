@@ -2,7 +2,7 @@
 
 sRNA-IMP analyses small-RNA sequencing data of microbiome samples. It takes **one raw
 single-end small-RNA FASTQ per sample** and **sRNA type**, removes adapters and low-quality bases, separates
-**human** from **microbial (non-human)** reads, and classifies both against curated small-RNA databases and against the **sample's own metagenomic assembly** (contigs, annotation, bins) from [IMP3](https://genomeanalysislcsb.github.io/IMP3/) or any other workflow ([inputs](inputs.md#where-the-assembly-inputs-come-from)), or, without metagenomic or metatranscriptomic data, against a set of annotated [reference genomes](inputs.md#reference-genomes-instead-of-an-assembly). A [tutorial](tutorial_tarallo.md) reanalyses a public colorectal cancer cohort from download to cohort report.
+**human** from **microbial (non-human)** reads, and classifies both against curated small-RNA databases and against the **sample's own metagenomic assembly** (contigs, annotation, bins) from [IMP3](https://genomeanalysislcsb.github.io/IMP3/) or any other workflow ([inputs](inputs.md#where-the-assembly-inputs-come-from)), or, without metagenomic or metatranscriptomic data, against a set of annotated [reference genomes](inputs.md#reference-genomes-instead-of-an-assembly). Two tutorials reanalyse a public colorectal cancer cohort: [Tutorial 1](tutorial_tarallo.md) from download through the assembly of each metagenome to the cohort report, [Tutorial 2](tutorial_reference_genomes.md) without the metagenomes, on MGnify reference genomes chosen from the libraries' own rRNA reads.
 
 The pipeline works on three levels: modules per sample-sheet row (one sRNA library), steps per sample
 (all its libraries together with metaT / metaG) and a cohort summary over all samples.

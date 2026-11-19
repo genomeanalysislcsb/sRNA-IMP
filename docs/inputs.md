@@ -107,6 +107,7 @@ python3 scripts/srna_prepare_inputs.py --sample REF --outdir prep --genomes geno
 
 #### Genomes from an MGnify catalogue
 
+[Tutorial 2](tutorial_reference_genomes.md) walks through this for a whole cohort.
 [MGnify genome catalogues](https://www.ebi.ac.uk/metagenomics/browse/genomes) provide species-representative genomes,
 mostly MAGs, with Prokka annotation and GTDB taxonomy for host-associated biomes such as the human gut, oral cavity and
 vagina, mouse gut, pig and chicken gut and cow rumen. `scripts/srna_fetch_mgnify.py` selects and downloads them in the

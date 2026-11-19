@@ -1,4 +1,4 @@
-# Tutorial: reanalysing Tarallo et al. 2019
+# Tutorial 1: reanalysing Tarallo et al. 2019
 
 This tutorial runs the whole way from public data to a cohort report, on the stool small RNA and shotgun
 metagenome data of [Tarallo et al. 2019](https://doi.org/10.1128/mSystems.00289-19) (mSystems 4:e00289-19):
@@ -151,6 +151,7 @@ Without IMP3, assemble, annotate, bin and map with other tools and convert the o
 ## 5. Sample sheet and configuration
 
 ```bash
+cd $B
 $P/srna_make_samples.sh -c -o samples.tsv sample.template.tsv ids.txt    # -c: reports missing files
 cp $P/srna_pipeline.config.sh tarallo2019.config.sh
 ```
