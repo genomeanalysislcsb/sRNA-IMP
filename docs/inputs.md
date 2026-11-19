@@ -59,7 +59,8 @@ Any workflow can provide them, as long as the files follow the formats above:
 
 **IMP3** writes all of these in the expected form; point the columns at its output folders
 ([metaT and metaG counts from IMP](#metat-and-metag-counts-from-imp)). **Other workflows:**
-`scripts/srna_prepare_inputs.py` converts their outputs per sample:
+`scripts/srna_prepare_inputs.py` converts their outputs per sample (for reference genomes instead of an assembly see
+[below](#reference-genomes-instead-of-an-assembly)):
 
 ```bash
 python3 scripts/srna_prepare_inputs.py --sample S01 --outdir prep \
@@ -77,6 +78,37 @@ folder of bin FASTA files and a `bins.tsv` from GTDB-Tk and CheckM, counts metaG
 per contig with featureCounts as IMP3 does (`-M --fraction`, metaT with its strandedness, metaG unstranded), and
 writes the sample-sheet row. The BAMs are the metaG / metaT reads aligned to the same contigs (sorted; indexed if the
 metaT BAM is also used for the strand check, `COMPARE_MT_BAM`).
+
+### Reference genomes instead of an assembly
+
+Without a metagenome or metatranscriptome of the sample, a set of annotated reference genomes can take the place of
+the assembly, for example genomes typical of the body site (gut, skin, vagina) or isolates from the same study.
+`srna_prepare_inputs.py --genomes` turns a folder of genomes into the same inputs:
+
+```bash
+# genomes/: one GFF3 per genome (Bakta, Prokka; <genome>.gff3 / .gff, optionally .gz), with the sequence in a
+# ##FASTA section or in <genome>.fna / .fa / .fasta next to it
+python3 scripts/srna_prepare_inputs.py --sample REF --outdir prep --genomes genomes \
+    --gtdbtk gtdbtk/gtdbtk.bac120.summary.tsv          # or --genome-taxonomy genome_taxonomy.tsv
+```
+
+* The genomes are concatenated into `prep/REF/assembly.fa.gz` and `annotation.gff.gz`; contigs and feature IDs are
+  renamed `<genome>__<name>` so that names from different genomes cannot collide (`--keep-names` keeps them; they must
+  then be unique).
+* Each genome is one bin (`contig2bin.tsv.gz`). Taxonomy comes from GTDB-Tk summaries of the genomes (`--gtdbtk`) or
+  from a table `genome<TAB>classification` in GTDB style (`d__Bacteria;p__…;s__…`, `--genome-taxonomy`). Genomes count
+  as complete (100 %, 0 % contamination) unless `--checkm` gives measured values.
+* Use the same row for every sample: copy the `assembly`, `gff`, `contig2bin` and `bins` columns of
+  `prep/REF/sample_row.tsv` into each sample's row. The bowtie index of the reference set is built per sample
+  (`Assembly/<sample>…`), so keep the set to the genomes that matter (hundreds rather than tens of thousands).
+* metaG or metaT counts are optional; if there are any, align those reads to `prep/REF/assembly.fa.gz`.
+* Set `ASSEMBLY_SOURCE=reference` in the configuration, so that reports and Methods describe a reference set and not
+  an assembly of the sample.
+
+Everything downstream works as with an assembly: reads are placed on genes, strands and genomes, novel loci are
+called on the reference genomes, and CRISPR spacers of the reference arrays are counted. What is lost: the contig
+rescue of the host split and the placement cover only organisms in the reference set, reads of other organisms stay
+unplaced, and strain differences between the sample and the reference are not seen.
 
 ## Raw reads
 

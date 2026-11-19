@@ -58,6 +58,10 @@ STAGE_MODE=${STAGE_MODE:-copy}
 # sample material, used in the report explanations and the automated Methods (e.g. stool, saliva, skin swab).
 # Fraction-specific text (sRNA-Int vs sRNA-Ext) and metaT text appear only when the run has these data.
 SAMPLE_TYPE=${SAMPLE_TYPE:-stool}
+# where the contigs of the sample sheet come from: same_sample = an assembly of the sample's own metagenome and/or
+# metatranscriptome (IMP3 or srna_prepare_inputs.py); reference = annotated reference genomes concatenated with
+# srna_prepare_inputs.py --genomes (one bin per genome). Only changes the wording of reports and Methods.
+ASSEMBLY_SOURCE=${ASSEMBLY_SOURCE:-same_sample}
 
 
 # ------------------------- general -----------------------------------

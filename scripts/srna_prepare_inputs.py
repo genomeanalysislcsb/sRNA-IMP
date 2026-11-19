@@ -9,6 +9,18 @@ Usage:
       [--metag-bam mg.bam] [--metat-bam mt.bam --metat-strand reverse|forward|unstranded] [--threads 8]
       [--srna-fastq S.fastq.gz --type sRNA]
 
+Reference genomes instead of an assembly of the sample (no metagenome or metatranscriptome, or as a common
+reference for many samples):
+  srna_prepare_inputs.py --sample REF --outdir prep --genomes DIR [--gtdbtk TSV | --genome-taxonomy TSV]
+      [--checkm quality_report.tsv] [--keep-names] [--metag-bam ...] [--metat-bam ...]
+  DIR holds one GFF3 per genome (<genome>.gff3 / .gff, optionally .gz; Bakta or Prokka) with its sequence in a
+  ##FASTA section or in <genome>.fna / .fa / .fasta next to it. The genomes are concatenated into assembly.fa.gz,
+  contigs renamed <genome>__<contig> (--keep-names: unchanged, must be unique), and each genome becomes one bin
+  (contig2bin.tsv.gz). Taxonomy: GTDB-Tk summaries of the genomes (--gtdbtk) or a table genome<TAB>classification
+  (--genome-taxonomy, GTDB style d__;p__;...). Genomes count as complete (100 %, 0 % contamination) unless --checkm
+  gives measured values. metaG / metaT BAMs, if any, must be aligned to the written assembly.fa.gz. Set
+  ASSEMBLY_SOURCE=reference in the configuration so that reports and Methods describe the reference set.
+
 Writes prep/S/:
   assembly.fa.gz       the contigs (names unchanged; must match the GFF and the BAMs)
   annotation.gff.gz    GFF3 without a ##FASTA section, every feature with an ID; Prokka CRISPR repeat_region -> CRISPR
@@ -86,6 +98,75 @@ def clean_gff(path, out, contigs):
     return n_type, new_ids
 
 
+def genome_files(gdir):
+    """[(genome, gff, fasta or None)] for every GFF3 in gdir; fasta None = sequence in the ##FASTA section"""
+    out = []
+    for g in sorted(glob.glob(os.path.join(gdir, "*"))):
+        m = re.search(r"\.(gff3?|GFF3?)(\.gz)?$", g)
+        if not m:
+            continue
+        name = g[:m.start()]
+        fa = next((name + e for e in (".fna", ".fa", ".fasta", ".fsa", ".fna.gz", ".fa.gz", ".fasta.gz", ".fsa.gz")
+                   if os.path.exists(name + e)), None)
+        out.append((os.path.basename(name), g, fa))
+    if not out:
+        sys.exit("Error: no GFF3 files (*.gff3, *.gff, optionally .gz) in %s" % gdir)
+    return out
+
+
+def merge_genomes(gdir, fa_out, gff_raw, keep_names):
+    """concatenate the genomes into one FASTA and one GFF3 (contigs <genome>__<contig>); -> {contig: genome}"""
+    c2g = {}
+    with gzip.open(fa_out, "wt") as fo, gzip.open(gff_raw, "wt") as go:
+        go.write("##gff-version 3\n")
+        for gname, gff, fa in genome_files(gdir):
+            ren = (lambda c: c) if keep_names else (lambda c, g=gname: "%s__%s" % (g, c))
+            seqs = 0
+            with op(gff) as fh:
+                in_fa = False
+                for line in fh:
+                    if line.startswith("##FASTA"):
+                        in_fa = True
+                        continue
+                    if in_fa:
+                        if fa:
+                            break
+                        if line.startswith(">"):
+                            c = ren(line[1:].split()[0])
+                            if c in c2g:
+                                sys.exit("Error: contig %s occurs twice (use without --keep-names)" % c)
+                            c2g[c] = gname; seqs += 1
+                            fo.write(">%s\n" % c)
+                        else:
+                            fo.write(line)
+                        continue
+                    if line.startswith("#") or not line.strip():
+                        continue
+                    f = line.rstrip("\n").split("\t")
+                    if len(f) == 9:
+                        f[0] = ren(f[0])
+                        if not keep_names:
+                            f[8] = re.sub(r"(^|;)(ID|Parent)=([^;]+)", lambda m: "%s%s=%s" % (
+                                m.group(1), m.group(2), ",".join("%s__%s" % (gname, x) for x in m.group(3).split(","))),
+                                f[8])
+                        go.write("\t".join(f) + "\n")
+            if fa:
+                with op(fa) as fh:
+                    for line in fh:
+                        if line.startswith(">"):
+                            c = ren(line[1:].split()[0])
+                            if c in c2g:
+                                sys.exit("Error: contig %s occurs twice (use without --keep-names)" % c)
+                            c2g[c] = gname; seqs += 1
+                            fo.write(">%s\n" % c)
+                        else:
+                            fo.write(line)
+            if not seqs:
+                sys.exit("Error: no sequence for genome %s (no ##FASTA section in %s and no FASTA next to it)" % (
+                    gname, gff))
+    return c2g
+
+
 def features_by_type(gff):
     by = {}
     with op(gff) as fh:
@@ -120,8 +201,14 @@ def contig2bin(bins_dir, table, out):
     return rows
 
 
-def bin_table(gtdbtk, checkm, out):
+def bin_table(gtdbtk, checkm, out, taxonomy="", genomes=()):
     tax, qual = {}, {}
+    if taxonomy:
+        with op(taxonomy) as fh:
+            for line in fh:
+                f = line.rstrip("\n").split("\t")
+                if len(f) >= 2 and not line.startswith("#") and f[0] not in ("genome", "user_genome"):
+                    tax[FASTA_EXT.sub("", f[0])] = f[1]
     for p in [x for x in (gtdbtk or "").split(",") if x]:
         with op(p) as fh:
             head = fh.readline().rstrip("\n").split("\t")
@@ -136,7 +223,9 @@ def bin_table(gtdbtk, checkm, out):
                 r = dict(zip(head, f))
                 b = FASTA_EXT.sub("", r.get("name", r.get("bin id", f[0])))
                 qual[b] = (r.get("completeness", ""), r.get("contamination", ""))
-    bins = sorted(set(tax) | set(qual))
+    for g in genomes:                      # reference genomes: complete unless measured
+        qual.setdefault(g, ("100", "0"))
+    bins = sorted(set(tax) | set(qual) | set(genomes))
     if bins:
         with open(out, "w") as fo:
             fo.write("user_genome\tclassification\tCompleteness\tContamination\n")
@@ -188,7 +277,10 @@ def count(omic, bam, strand, by_type, lens, cdir, fc, threads):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sample", required=True); ap.add_argument("--outdir", required=True)
-    ap.add_argument("--contigs", required=True); ap.add_argument("--gff", required=True)
+    ap.add_argument("--contigs", default=""); ap.add_argument("--gff", default="")
+    ap.add_argument("--genomes", default="", help="folder of reference genomes (GFF3 + FASTA) instead of --contigs/--gff")
+    ap.add_argument("--genome-taxonomy", default="", help="genome<TAB>GTDB-style classification (with --genomes)")
+    ap.add_argument("--keep-names", action="store_true", help="--genomes: keep contig names (must be unique)")
     ap.add_argument("--bins-dir", default=""); ap.add_argument("--contig2bin", default="")
     ap.add_argument("--gtdbtk", default=""); ap.add_argument("--checkm", default="")
     ap.add_argument("--metag-bam", default=""); ap.add_argument("--metat-bam", default="")
@@ -196,12 +288,23 @@ def main():
     ap.add_argument("--featurecounts", default="featureCounts"); ap.add_argument("--threads", type=int, default=8)
     ap.add_argument("--srna-fastq", default=""); ap.add_argument("--type", default="sRNA")
     a = ap.parse_args()
+    if bool(a.genomes) == bool(a.contigs or a.gff) or (not a.genomes and not (a.contigs and a.gff)):
+        ap.error("give either --contigs and --gff (an assembly) or --genomes (reference genomes)")
 
     d = os.path.abspath(os.path.join(a.outdir, a.sample))
     os.makedirs(d, exist_ok=True)
     asm, gff = os.path.join(d, "assembly.fa.gz"), os.path.join(d, "annotation.gff.gz")
-    lens = contigs_and_lengths(a.contigs, asm)
-    n_type, new_ids = clean_gff(a.gff, gff, lens)
+    c2g = {}
+    if a.genomes:
+        tmp_fa, tmp_gff = os.path.join(d, ".genomes.fa.gz"), os.path.join(d, ".genomes.gff.gz")
+        c2g = merge_genomes(a.genomes, tmp_fa, tmp_gff, a.keep_names)
+        lens = contigs_and_lengths(tmp_fa, asm)
+        n_type, new_ids = clean_gff(tmp_gff, gff, lens)
+        os.remove(tmp_fa); os.remove(tmp_gff)
+        print("%s: %d reference genomes" % (a.sample, len(set(c2g.values()))), file=sys.stderr)
+    else:
+        lens = contigs_and_lengths(a.contigs, asm)
+        n_type, new_ids = clean_gff(a.gff, gff, lens)
     print("%s: %d contigs; GFF types %s%s" % (a.sample, len(lens), ", ".join("%s %d" % kv for kv in sorted(n_type.items())),
           "; %d IDs added" % new_ids if new_ids else ""), file=sys.stderr)
     for t, why in (("CDS", "no gene-level counts or antisense analysis"),
@@ -210,8 +313,13 @@ def main():
                             "are recovered by the assembly module")):
         if t not in n_type:
             print("warning: no %s features in the GFF: %s" % (t, why), file=sys.stderr)
-    c2b = contig2bin(a.bins_dir, a.contig2bin, os.path.join(d, "contig2bin.tsv.gz"))
-    bins = bin_table(a.gtdbtk, a.checkm, os.path.join(d, "bins.tsv"))
+    if c2g:
+        c2b = sorted(c2g.items())
+        with gzip.open(os.path.join(d, "contig2bin.tsv.gz"), "wt") as fo:
+            fo.writelines("%s\t%s\n" % r for r in c2b)
+    else:
+        c2b = contig2bin(a.bins_dir, a.contig2bin, os.path.join(d, "contig2bin.tsv.gz"))
+    bins = bin_table(a.gtdbtk, a.checkm, os.path.join(d, "bins.tsv"), a.genome_taxonomy, sorted(set(c2g.values())))
     by_type = features_by_type(gff)
     cdir = os.path.join(d, "counts")
     if a.metat_bam or a.metag_bam:

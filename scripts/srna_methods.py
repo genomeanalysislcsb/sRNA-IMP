@@ -279,10 +279,13 @@ def processing_sections(X, types):
         "Small RNA sequencing libraries of %s samples (%s) were processed per sample with the %s%s, a Bash workflow "
         "with Python helper scripts that runs locally or on a SLURM cluster." % (
             D.sample_type, ", ".join(types) if types else "[CHECK: library types]", PIPELINE, ver),
-        "Reads were trimmed, separated into human and non-human reads, classified into RNA classes, and mapped to "
-        "the %s of the same sample, reconstructed with the integrated multi-omic workflow %s, so that small RNAs "
-        "could be placed on the sample's own contigs, genes, genomic bins and functional annotation." % (
-            D.assembly, X.rc("imp")),
+        ("Reads were trimmed, separated into human and non-human reads, classified into RNA classes, and mapped to "
+         "a set of annotated reference genomes [CHECK: source and number of genomes] in place of an assembly of "
+         "the sample, so that small RNAs could be placed on genes, genomes and functional annotation." if REF(X) else
+         "Reads were trimmed, separated into human and non-human reads, classified into RNA classes, and mapped to "
+         "the %s of the same sample, reconstructed with the integrated multi-omic workflow %s, so that small RNAs "
+         "could be placed on the sample's own contigs, genes, genomic bins and functional annotation." % (
+             D.assembly, X.rc("imp"))),
         ("Libraries without a paired metagenome (%s) were processed up to quality control, the separation of host "
          "and microbial reads and their classification; no assembly-based analyses were run for them." % (
              ", ".join(D.host_only)) if D.host_only else ""),
@@ -371,10 +374,13 @@ def processing_sections(X, types):
                            "Each read was assigned to one best hit (-k 1 --best).", strand),
     ]))
     items = [
-        "Contigs, gene and ncRNA annotation (%s) and functional annotation (%s; %s) of each sample were taken "
-        "from the integrated multi-omic analysis; the GFF annotation was converted to BED with %s." % (
-            X.rc("annotation"), X.rc("functional"), "KEGG%s, Pfam%s and COG%s" % (c("kegg"), c("pfam"), c("cog")),
-            X.tool("bedops")),
+        ("The reference genomes, concatenated with srna_prepare_inputs.py, and their gene, ncRNA and functional "
+         "annotation [CHECK: annotation tool and version] were used for all libraries; the GFF annotation was "
+         "converted to BED with %s." % X.tool("bedops") if REF(X) else
+         "Contigs, gene and ncRNA annotation (%s) and functional annotation (%s; %s) of each sample were taken "
+         "from the integrated multi-omic analysis; the GFF annotation was converted to BED with %s." % (
+             X.rc("annotation"), X.rc("functional"), "KEGG%s, Pfam%s and COG%s" % (c("kegg"), c("pfam"), c("cog")),
+             X.tool("bedops"))),
         "All non-human reads (not collapsed) were aligned to the contigs with %s (-v %s --best --strata, %s) and "
         "processed with %s; the number of hits *n* of a read was stored as NH tag and every alignment was "
         "weighted 1/*n* in all downstream counts." % (
@@ -403,8 +409,10 @@ def processing_sections(X, types):
                      "multi-omic comparisons." % (
                          P("RRNA_RESCUE_MIN_ANTISENSE", "20"),
                          int(round(float(P("RRNA_RESCUE_MAX_SENSE_RATIO", "0.1")) * 100)), X.tool("infernal")))
-    S.append(("Mapping to the sample's own assembly and gene-level quantification", items))
+    S.append((MAP_HEAD[REF(X)], items))
     S.append(("Genomic bins", [
+        "Each reference genome formed one bin, with taxonomy from %s [CHECK: or the source's taxonomy]; small RNA "
+        "counts were summed per contig, genome and taxonomic rank." % X.rc("bin_taxonomy") if REF(X) else
         "Contigs were assigned to metagenome-assembled genomes (%s) with taxonomy from %s; bins were classified as "
         "high, medium or low quality from completeness and contamination, and small RNA counts were summed per "
         "contig, bin and taxonomic rank." % (X.rc("binning"), X.rc("bin_taxonomy")),
@@ -650,7 +658,17 @@ def render_nature(X, sections, title):
     return out + references_md(X)
 
 
+MAP_HEAD = {False: "Mapping to the sample's own assembly and gene-level quantification",
+            True: "Mapping to the reference genomes and gene-level quantification"}
+
+
+def REF(X):
+    """ASSEMBLY_SOURCE=reference: reference genomes (srna_prepare_inputs.py --genomes) instead of an assembly"""
+    return X.P("ASSEMBLY_SOURCE", "same_sample") == "reference"
+
+
 STAR_CMD = {
+    "Mapping to the reference genomes and gene-level quantification": "assembly",
     "Read preprocessing and quality control": "qc,contam",
     "Separation of human and microbial reads": "prep,split",
     "Human small RNA classes": "human",
@@ -686,9 +704,10 @@ def render_star(X, sections, title, cohort):
                " together with the %s of the same samples" % X.D.omics if X.D.omics else "",
                ", followed by a cross-sample cohort analysis" if cohort else ""), "",
            "## Before you begin", "",
-           "1. Process the %s reads of each sample with the integrated multi-omic workflow (%s, annotation, "
-           "binning)." % ("metagenomic and metatranscriptomic" if X.D.metaT else "metagenomic",
-                          "assembly"),
+           ("1. Prepare the annotated reference genomes with srna_prepare_inputs.py --genomes (one bin per genome)."
+            if REF(X) else
+            "1. Process the %s reads of each sample with the integrated multi-omic workflow (assembly, annotation, "
+            "binning)." % ("metagenomic and metatranscriptomic" if X.D.metaT else "metagenomic")),
            "2. Install the software environments (envs/*.yml) and the reference databases listed in the key "
            "resources table, and set their paths in srna_pipeline.config.sh.",
            "3. Prepare a sample sheet with the small RNA FASTQ files and the multi-omic outputs per sample"
