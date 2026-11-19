@@ -8,6 +8,17 @@ type: software
 version: 1.0.0
 date-released: 2026-11-19
 license: MIT
+doi: "10.5281/zenodo.24363414"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.24363414"
+    description: "Zenodo archive of v1.0.0 (source and container image)"
+  - type: url
+    value: "https://workflowhub.org/workflows/2387"
+    description: "WorkflowHub"
+  - type: other
+    value: "biotools:srna-imp"
+    description: "bio.tools"
 repository-code: "https://github.com/genomeanalysislcsb/sRNA-IMP"
 url: "https://genomeanalysislcsb.github.io/sRNA-IMP/"
 authors:

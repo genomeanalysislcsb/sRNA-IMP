@@ -1,5 +1,9 @@
 # sRNA-IMP
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24363414.svg)](https://doi.org/10.5281/zenodo.24363414)
+[![bio.tools](https://img.shields.io/badge/bio.tools-srna--imp-blue)](https://bio.tools/srna-imp)
+[![WorkflowHub](https://img.shields.io/badge/WorkflowHub-2387-blue)](https://workflowhub.org/workflows/2387)
+
 **sRNA-IMP** is a modular pipeline for small-RNA sequencing (sRNA-seq) of microbiome samples, integrated with the
 metagenomic (and metatranscriptomic) assembly of the same samples: contigs, annotation and bins from
 [IMP3](https://github.com/genomeanalysislcsb/IMP3) or any other assembly workflow (`scripts/srna_prepare_inputs.py`), or
@@ -63,7 +67,8 @@ See [Installation](https://genomeanalysislcsb.github.io/sRNA-IMP/installation/),
 ## Citation and license
 
 LCSB BioCore, University of Luxembourg. Please cite sRNA-IMP as given in [CITATION.cff](CITATION.cff) (GitHub:
-"Cite this repository"; the archived release has a Zenodo DOI), together with the tools listed in the Methods text of
+"Cite this repository"; v1.0.0 with its container image: [doi:10.5281/zenodo.24363414](https://doi.org/10.5281/zenodo.24363414);
+registered in [bio.tools](https://bio.tools/srna-imp) and [WorkflowHub](https://workflowhub.org/workflows/2387)), together with the tools listed in the Methods text of
 your run. Changes per release: [CHANGELOG.md](CHANGELOG.md). License: MIT, see [LICENSE](LICENSE).
 
 ## Related tools
