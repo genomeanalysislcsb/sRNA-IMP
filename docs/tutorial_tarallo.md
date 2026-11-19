@@ -240,6 +240,16 @@ The script reads the cohort tables (`Cohort/tables/cohort.sample_stats.tsv`, `co
 without classified rRNA reads are left out of panel c. The tests are those of the cohort module (Mann-Whitney vs
 HC, Spearman trend HC < adenoma < CRC, Kruskal-Wallis).
 
+The original study reports no library exclusion. To show the same panels with all 80 libraries, write a second
+cohort folder without the QC exclusion and point the script at it:
+
+```bash
+cp tarallo2019.config.sh all80.config.sh
+printf 'COHORT_QC_DROP=none\nCOHORT_DIR=%s\n' "$B/sRNA-IMP/Cohort_all80" >> all80.config.sh
+$P/srna_pipeline.sh -s samples.tsv -o $B/sRNA-IMP -c all80.config.sh --cohort --skip-env-check
+python3 $P/paper/fig3_tarallo.py $B/sRNA-IMP $B/fig3_tarallo_all80 --cohort-dir $B/sRNA-IMP/Cohort_all80
+```
+
 Panel d shows human miRNA reads per library by group. To compare two runs of the same libraries instead (the paper
 compares the earlier strict host settings with the defaults), give the second output folder:
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """fig3_tarallo.py - Fig. 3 of the sRNA-IMP paper: reanalysis of Tarallo et al. 2019 (stool small RNA, HC / adenoma / CRC).
 
-Usage: fig3_tarallo.py OUTDIR OUTPREFIX [--type sRNA] [--compare-outdir OUTDIR2] [--compare-label "earlier strict"]
+Usage: fig3_tarallo.py OUTDIR OUTPREFIX [--type sRNA] [--cohort-dir DIR] [--compare-outdir OUTDIR2] [--compare-label "earlier strict"]
 
 OUTDIR is an sRNA-IMP output folder after --cohort (docs/tutorial_tarallo.md). Read from it:
   Cohort/tables/cohort.sample_stats.tsv          groups, QC status, human_fraction (panel a)
@@ -9,6 +9,8 @@ OUTDIR is an sRNA-IMP output folder after --cohort (docs/tutorial_tarallo.md). R
   Cohort/tables/cohort.<type>.genus.counts.tsv   rRNA genera, Bracken (panel c)
   <ID>/Analysis/<type>/nonhuman/trna/<ID>.trna_species.counts.tsv   species from microbial tRNA reads (panel b)
 Libraries excluded by the cohort QC are left out, as in the cohort statistics. Groups: HC, Adenoma, CRC.
+--cohort-dir: another cohort folder of the same run (default OUTDIR/Cohort), e.g. one written with
+COHORT_QC_DROP=none and COHORT_DIR=OUTDIR/Cohort_all80 to show all libraries.
 
 Panels: a host load; b tRNA species with the change reported by Tarallo et al.; c Agathobacter among rRNA reads;
 d human miRNA reads per library (with --compare-outdir: this run vs another run of the same libraries, e.g.
@@ -62,8 +64,8 @@ def colsum(m, n):
     return np.sum(list(m.values()), axis=0) if m else np.zeros(n)
 
 
-def load_run(outdir, typ):
-    tab = os.path.join(outdir, "Cohort", "tables")
+def load_run(outdir, typ, cohort_dir=""):
+    tab = os.path.join(cohort_dir or os.path.join(outdir, "Cohort"), "tables")
     st = read_rows(os.path.join(tab, "cohort.sample_stats.tsv"))
     types = sorted({r["type"] for r in st})
     if typ is None:
@@ -96,6 +98,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("outdir"); ap.add_argument("out")
     ap.add_argument("--type", default=None, help="library type (column 'type' of the sample sheet); default: the only one")
+    ap.add_argument("--cohort-dir", default="", help="cohort folder of OUTDIR to read (default OUTDIR/Cohort)")
     ap.add_argument("--compare-outdir", default="", help="second run of the same libraries for panel d")
     ap.add_argument("--compare-label", default="earlier strict", help="x label of the second run in panel d")
     ap.add_argument("--label", default="final defaults", help="x label of this run in panel d (with --compare-outdir)")
@@ -109,7 +112,7 @@ def main():
                          "legend.frameon": False, "legend.fontsize": 7})
     GC = {"HC": CAT[0], "Adenoma": CAT[2], "CRC": CAT[1]}
 
-    R = load_run(a.outdir, a.type)
+    R = load_run(a.outdir, a.type, a.cohort_dir)
     S, G = R["samples"], R["group"]
     order = np.array([GO.index(g) for g in G], float)
     n = len(S)
